@@ -1,12 +1,14 @@
 import React from 'react';
 import '../App.css';
 
-export default function MenuView({ userName, onSelectLevel, onBack }) {
+export default function MenuView({ userName, userGrade, onSelectLevel, onBack }) {
   return (
     <div className="menu-container">
       <div className="menu-header">
         <h1 className="menu-title">¡Hola, {userName}! 👋</h1>
-        <p className="menu-subtitle">¿Listo para el reto del día? Elige tu nivel:</p>
+        <p className="menu-subtitle">
+          {userGrade ? `${userGrade} • ` : ''}¿Listo para el reto del día? Elige tu nivel:
+        </p>
       </div>
 
       {/* AVANCE: Se pueden renderizar dinámicamente los niveles haciendo un fetch desde la base de datos */}

@@ -9,10 +9,12 @@ function App() {
   // AVANCE: Para proyectos más grandes, se recomienda usar React Router y Context API o Zustand para el estado global
   const [view, setView] = useState('login'); // 'login', 'menu', 'activities'
   const [userName, setUserName] = useState('');
+  const [userGrade, setUserGrade] = useState('');
   const [selectedLevel, setSelectedLevel] = useState(null);
 
-  const handleLogin = (name) => {
+  const handleLogin = (name, grade) => {
     setUserName(name);
+    setUserGrade(grade || '');
     setView('menu');
   };
 
@@ -36,10 +38,11 @@ function App() {
       )}
 
       {view === 'menu' && (
-        <MenuView 
-          userName={userName} 
-          onSelectLevel={handleSelectLevel} 
-          onBack={handleBackToLogin} 
+        <MenuView
+          userName={userName}
+          userGrade={userGrade}
+          onSelectLevel={handleSelectLevel}
+          onBack={handleBackToLogin}
         />
       )}
 

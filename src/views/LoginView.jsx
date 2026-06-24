@@ -1,80 +1,350 @@
-import React, { useState } from 'react';
-import '../App.css';
+import React, { useState, useMemo } from 'react';
+import './LoginView.css';
+
+const STAR_DATA = Array.from({ length: 120 }, (_, i) => ({
+  id: i,
+  x: (i * 37.7 + 13.3) % 100,
+  y: (i * 61.3 + 7.7) % 100,
+  size: (i % 3) + 1,
+  duration: 2 + (i % 5),
+  delay: (i % 7) * 0.5,
+  opacity: 0.3 + (i % 5) * 0.14,
+}));
+
+const GRADES = [
+  '4° Primaria', '5° Primaria', '6° Primaria',
+];
 
 export default function LoginView({ onLogin }) {
-  // AVANCE: Se puede cargar un nickname guardado previamente en localStorage
-  const [name, setName] = useState('');
+  const [mode, setMode] = useState('login');
 
-  const handleSubmit = (e) => {
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPw, setShowLoginPw] = useState(false);
+
+  const [regName, setRegName] = useState('');
+  const [regGrade, setRegGrade] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirm, setRegConfirm] = useState('');
+  const [showRegPw, setShowRegPw] = useState(false);
+
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
+
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const switchMode = (m) => {
+    setMode(m);
+    setError('');
+    setSuccess('');
+    setForgotSent(false);
+  };
+
+  const handleLogin = (e) => {
     e.preventDefault();
-    // AVANCE: Aquí se conectaría con una API para registrar o autenticar al niño en la base de datos
-    // Si no introduce nombre, usamos un valor por defecto simpático
-    onLogin(name.trim() || 'Aventurero');
+    setError('');
+    if (!loginEmail || !loginPassword) {
+      setError('Por favor completa todos los campos.');
+      return;
+    }
+    const users = JSON.parse(localStorage.getItem('altum_users') || '[]');
+    const user = users.find(
+      u => u.email === loginEmail.toLowerCase() && u.password === loginPassword
+    );
+    if (!user) {
+      setError('Correo o contraseña incorrectos. Intenta de nuevo.');
+      return;
+    }
+    onLogin(user.name, user.grade);
+  };
+
+  const handleRegister = (e) => {
+    e.preventDefault();
+    setError('');
+    if (!regName || !regGrade || !regEmail || !regPassword || !regConfirm) {
+      setError('Por favor completa todos los campos.');
+      return;
+    }
+    if (regPassword.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (regPassword !== regConfirm) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+    const users = JSON.parse(localStorage.getItem('altum_users') || '[]');
+    if (users.find(u => u.email === regEmail.toLowerCase())) {
+      setError('Este correo ya está registrado. Inicia sesión.');
+      return;
+    }
+    const newUser = {
+      name: regName.trim(),
+      grade: regGrade,
+      email: regEmail.toLowerCase(),
+      password: regPassword,
+    };
+    users.push(newUser);
+    localStorage.setItem('altum_users', JSON.stringify(users));
+    setSuccess('¡Registro exitoso! Redirigiendo al inicio de sesión...');
+    setTimeout(() => {
+      setLoginEmail(regEmail.toLowerCase());
+      switchMode('login');
+    }, 1400);
+  };
+  const handleForgot = (e) => {
+    e.preventDefault();
+    setError('');
+    if (!forgotEmail) {
+      setError('Ingresa tu correo electrónico.');
+      return;
+    }
+    setForgotSent(true);
   };
 
   return (
-    <div className="play-card login-container">
-      {/* Mascota Interactiva en SVG (Un robot matemático amigable) */}
-      <div className="mascot-container">
-        <svg viewBox="0 0 160 160" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-          {/* Sombras */}
-          <ellipse cx="80" cy="145" rx="45" ry="10" fill="#e2e8f0" />
-          
-          {/* Cuerpo principal */}
-          <rect x="35" y="45" width="90" height="85" rx="25" fill="#2b9eed" stroke="#1b6cb0" strokeWidth="4" />
-          
-          {/* Pantalla de la cara */}
-          <rect x="47" y="57" width="66" height="48" rx="12" fill="#1e293b" />
-          
-          {/* Ojos brillantes */}
-          <circle cx="65" cy="77" r="10" fill="#10b981" />
-          <circle cx="65" cy="77" r="4" fill="#ffffff" />
-          
-          <circle cx="95" cy="77" r="10" fill="#10b981" />
-          <circle cx="95" cy="77" r="4" fill="#ffffff" />
-          
-          {/* Boca sonriente */}
-          <path d="M 68 92 Q 80 102 92 92" fill="none" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
-          
-          {/* Antena con signo de suma (+) */}
-          <line x1="80" y1="45" x2="80" y2="20" stroke="#1b6cb0" strokeWidth="5" strokeLinecap="round" />
-          <circle cx="80" cy="18" r="8" fill="#a855f7" stroke="#7e22ce" strokeWidth="3" />
-          {/* Signo + dentro del circulo */}
-          <line x1="77" y1="18" x2="83" y2="18" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
-          <line x1="80" y1="15" x2="80" y2="21" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
-          
-          {/* Manos / Brazos de resorte */}
-          <path d="M 35 85 Q 15 90 25 105" fill="none" stroke="#1b6cb0" strokeWidth="4" strokeLinecap="round" />
-          <path d="M 125 85 Q 145 90 135 105" fill="none" stroke="#1b6cb0" strokeWidth="4" strokeLinecap="round" />
-          <circle cx="25" cy="105" r="7" fill="#f59e0b" />
-          <circle cx="135" cy="105" r="7" fill="#f59e0b" />
+    <div className="space-backdrop">
+      {STAR_DATA.map(s => (
+        <div
+          key={s.id}
+          className="star"
+          style={{
+            left: `${s.x}%`,
+            top: `${s.y}%`,
+            width: s.size,
+            height: s.size,
+            animationDuration: `${s.duration}s`,
+            animationDelay: `${s.delay}s`,
+          }}
+        />
+      ))}
+
+      <div className="shooting-star" />
+      <div className="shooting-star s2" />
+
+
+      <div className="deco-saturn">
+        <div className="saturn-body" />
+        <div className="saturn-ring" />
+      </div>
+
+
+      <div className="deco-moon">
+        <div className="crater" style={{ top: '22%', left: '18%', width: 13, height: 13 }} />
+        <div className="crater" style={{ top: '48%', left: '52%', width: 19, height: 19 }} />
+        <div className="crater" style={{ top: '68%', left: '22%', width: 9, height: 9 }} />
+        <div className="crater" style={{ top: '30%', left: '65%', width: 11, height: 11 }} />
+      </div>
+
+    
+      <div className="deco-alien">
+        <svg viewBox="0 0 70 100" width="56" height="80" xmlns="http://www.w3.org/2000/svg">
+          <line x1="22" y1="8" x2="10" y2="-6" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round"/>
+          <circle cx="9" cy="-8" r="5" fill="#f0abfc"/>
+          <line x1="48" y1="8" x2="60" y2="-6" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round"/>
+          <circle cx="61" cy="-8" r="5" fill="#f0abfc"/>
+          <ellipse cx="35" cy="32" rx="26" ry="30" fill="#4ade80"/>
+          <ellipse cx="22" cy="26" rx="10" ry="13" fill="#0d1a0d"/>
+          <ellipse cx="48" cy="26" rx="10" ry="13" fill="#0d1a0d"/>
+          <circle cx="23" cy="23" r="4" fill="white" opacity="0.9"/>
+          <circle cx="49" cy="23" r="4" fill="white" opacity="0.9"/>
+          <circle cx="25" cy="25" r="2" fill="#a0f0c0"/>
+          <circle cx="51" cy="25" r="2" fill="#a0f0c0"/>
+          <path d="M 22 44 Q 35 54 48 44" stroke="#0d1a0d" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+          <ellipse cx="35" cy="72" rx="17" ry="22" fill="#4ade80"/>
+          <line x1="18" y1="65" x2="5" y2="78" stroke="#4ade80" strokeWidth="6" strokeLinecap="round"/>
+          <line x1="52" y1="65" x2="65" y2="78" stroke="#4ade80" strokeWidth="6" strokeLinecap="round"/>
         </svg>
       </div>
 
-      <h1 className="app-title">ALTUM</h1>
-      <p className="app-subtitle">¡Tu aventura matemática favorita! 🧠✨</p>
+      <div className="space-card">
+        <h1 className="space-title">ALTUM</h1>
+        <p className="space-tagline">Explora el universo matemático</p>
 
-      <form onSubmit={handleSubmit} style={{ width: '100%' }}>
-        <div className="playful-input-group">
-          <label className="playful-label" htmlFor="nickname">
-            ¿Cómo te llamas?
-          </label>
-          <input
-            id="nickname"
-            type="text"
-            className="playful-input"
-            placeholder="Escribe tu nombre aquí..."
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={15}
-            autoComplete="off"
-          />
-        </div>
 
-        <button type="submit" className="btn-3d btn-success">
-          ¡Empezar Aventura! 🚀
-        </button>
-      </form>
+        {mode !== 'forgot' && (
+          <div className="space-tabs">
+            <button
+              className={`space-tab ${mode === 'login' ? 'active' : ''}`}
+              onClick={() => switchMode('login')}
+            >
+              Iniciar sesión
+            </button>
+            <button
+              className={`space-tab ${mode === 'register' ? 'active' : ''}`}
+              onClick={() => switchMode('register')}
+            >
+              Registrarse
+            </button>
+          </div>
+        )}
+
+    
+        {error && <div className="space-alert error">{error}</div>}
+        {success && <div className="space-alert success">{success}</div>}
+
+        {mode === 'login' && (
+          <form onSubmit={handleLogin} className="space-form">
+            <div className="space-field">
+              <label>Correo electrónico</label>
+              <input
+                type="email"
+                className="space-input"
+                placeholder="explorador@cosmos.com"
+                value={loginEmail}
+                onChange={e => setLoginEmail(e.target.value)}
+                autoComplete="email"
+              />
+            </div>
+            <div className="space-field">
+              <label>Contraseña</label>
+              <div className="input-wrap">
+                <input
+                  type={showLoginPw ? 'text' : 'password'}
+                  className="space-input"
+                  placeholder="••••••••"
+                  value={loginPassword}
+                  onChange={e => setLoginPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+                <button type="button" className="toggle-pw" onClick={() => setShowLoginPw(p => !p)}>
+                  {showLoginPw ? '🙈' : '👁️'}
+                </button>
+              </div>
+            </div>
+            <button type="submit" className="space-btn primary">
+              Despegar 🚀
+            </button>
+            <button type="button" className="space-link" onClick={() => switchMode('forgot')}>
+              ¿Olvidaste tu contraseña?
+            </button>
+          </form>
+        )}
+
+        {mode === 'register' && (
+          <form onSubmit={handleRegister} className="space-form">
+            <div className="space-field">
+              <label>Nombre completo</label>
+              <input
+                type="text"
+                className="space-input"
+                placeholder="Tu nombre de explorador"
+                value={regName}
+                onChange={e => setRegName(e.target.value)}
+                maxLength={40}
+                autoComplete="name"
+              />
+            </div>
+            <div className="space-field">
+              <label>Grado escolar</label>
+              <select
+                className="space-input space-select"
+                value={regGrade}
+                onChange={e => setRegGrade(e.target.value)}
+              >
+                <option value="">Selecciona tu grado</option>
+                {GRADES.map(g => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-field">
+              <label>Correo electrónico</label>
+              <input
+                type="email"
+                className="space-input"
+                placeholder="explorador@cosmos.com"
+                value={regEmail}
+                onChange={e => setRegEmail(e.target.value)}
+                autoComplete="email"
+              />
+            </div>
+            <div className="space-field">
+              <label>Contraseña</label>
+              <div className="input-wrap">
+                <input
+                  type={showRegPw ? 'text' : 'password'}
+                  className="space-input"
+                  placeholder="Mínimo 6 caracteres"
+                  value={regPassword}
+                  onChange={e => setRegPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <button type="button" className="toggle-pw" onClick={() => setShowRegPw(p => !p)}>
+                  {showRegPw ? '🙈' : '👁️'}
+                </button>
+              </div>
+              {regPassword.length > 0 && (
+                <div className="pw-strength">
+                  <div
+                    className="pw-bar"
+                    style={{
+                      width: `${Math.min(100, (regPassword.length / 10) * 100)}%`,
+                      background: regPassword.length < 6 ? '#ef4444'
+                        : regPassword.length < 9 ? '#f59e0b' : '#10b981',
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="space-field">
+              <label>Confirmar contraseña</label>
+              <input
+                type="password"
+                className="space-input"
+                placeholder="Repite tu contraseña"
+                value={regConfirm}
+                onChange={e => setRegConfirm(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
+            <button type="submit" className="space-btn primary">
+              Comenzar misión 🛸
+            </button>
+          </form>
+        )}
+
+        {mode === 'forgot' && (
+          <div className="forgot-wrapper">
+            <h2 className="space-subtitle">Recuperar contraseña</h2>
+            {!forgotSent ? (
+              <form onSubmit={handleForgot} className="space-form">
+                <p className="forgot-desc">
+                  Ingresa tu correo y te enviaremos las instrucciones para recuperar tu contraseña.
+                </p>
+                <div className="space-field">
+                  <label>Correo electrónico</label>
+                  <input
+                    type="email"
+                    className="space-input"
+                    placeholder="explorador@cosmos.com"
+                    value={forgotEmail}
+                    onChange={e => setForgotEmail(e.target.value)}
+                    autoComplete="email"
+                  />
+                </div>
+                <button type="submit" className="space-btn primary">
+                  Enviar instrucciones 📡
+                </button>
+              </form>
+            ) : (
+              <div className="forgot-success">
+                <div className="forgot-icon">📡</div>
+                <p>
+                  ¡Señal enviada! Revisa tu correo{' '}
+                  <strong>{forgotEmail}</strong>{' '}
+                  para recuperar tu contraseña.
+                </p>
+              </div>
+            )}
+            <button type="button" className="space-link mt" onClick={() => switchMode('login')}>
+              ← Volver al inicio de sesión
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
