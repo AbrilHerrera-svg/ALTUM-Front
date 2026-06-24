@@ -1,12 +1,12 @@
-# ALTUM - Aventura Matemática 🧠✨
+# ALTUM - Plataforma de Aprendizaje Matemático
 
-**ALTUM** es una plataforma educativa interactiva y divertida para niños de escuela primaria, diseñada bajo una dinámica visual lúdica y amigable inspirada en el formato de aprendizaje de **Duolingo**.
+ALTUM es una plataforma educativa interactiva para estudiantes de escuela primaria, diseñada bajo una dinámica de gamificación inspirada en el formato de aprendizaje de Duolingo.
 
-El objetivo de ALTUM es que los niños dominen las matemáticas básicas (como sumas, restas, multiplicaciones y divisiones) a través del juego, ganando puntos, superando retos y viendo su progreso en tiempo real con personajes y elementos visuales interactivos.
+El proyecto tiene como objetivo facilitar el aprendizaje de conceptos matemáticos básicos (sumas, restas, multiplicaciones y divisiones) mediante una interfaz lúdica que muestra el progreso del estudiante en tiempo real.
 
 ---
 
-## 📁 Estructura del Proyecto
+## Estructura del Proyecto
 
 El código fuente del frontend está organizado de la siguiente manera directamente en la raíz del repositorio:
 
@@ -20,7 +20,7 @@ src/
 │   ├── LoginView.jsx      # Pantalla de bienvenida y registro de nombre
 │   ├── MenuView.jsx       # Tablero de selección de niveles (Fácil y Difícil)
 │   └── ActivitiesView.jsx # Interfaz del juego con preguntas, pistas y barra de progreso
-├── App.css            # Estilos dedicados de las vistas y animaciones lúdicas
+├── App.css            # Estilos dedicados de las vistas y animaciones
 ├── index.css          # Estilos globales, variables de color (HSL) y tipografía redondeada
 ├── App.jsx            # Controlador central de la navegación por estados de React
 └── main.jsx           # Punto de entrada de React + Vite
@@ -28,53 +28,52 @@ src/
 
 ---
 
-## 🚀 Cómo Iniciar el Proyecto en Local
+## Cómo Iniciar el Proyecto en Local
 
-Para ver el proyecto funcionando en tu computadora, sigue estos sencillos pasos en tu terminal (asegúrate de estar situado en la carpeta raíz del proyecto `ALTUM-Front`):
+Para ejecutar el proyecto en su entorno local, realice los siguientes pasos desde la terminal en la carpeta raíz del proyecto (`ALTUM-Front`):
 
-1. **Instala las dependencias (solo la primera vez):**
+1. **Instalar dependencias:**
    ```bash
    npm install
    ```
 
-2. **Inicia el servidor de desarrollo:**
+2. **Iniciar el servidor de desarrollo:**
    ```bash
    npm run dev
    ```
 
-3. **Abre tu navegador** en la dirección que te muestre la consola (normalmente `http://localhost:5173`).
+3. **Acceder a la aplicación:**
+   Abra el navegador en la dirección indicada en la consola (usualmente `http://localhost:5173`).
 
 ---
 
-## 📤 Pasos para Subir tus Cambios a Git (Hacer Push)
+## Flujo de Trabajo en Git
 
-Cuando hayas hecho cambios en el código y quieras guardarlos y subirlos al repositorio remoto (GitHub, GitLab, etc.), realiza estos comandos en orden desde la raíz del repositorio:
+Para guardar y subir las modificaciones locales al repositorio remoto, ejecute los siguientes comandos en orden desde la raíz del proyecto:
 
 > [!IMPORTANT]
-> **REGLA DE ORO:** Siempre debes asegurarte de descargar los cambios más recientes que otros miembros del equipo hayan subido antes de enviar los tuyos. Esto evita conflictos en el código. ¡Siempre haz un `git pull` antes de tu `git push`!
+> Es fundamental descargar los cambios más recientes del repositorio remoto antes de enviar cualquier modificación. Esto previene conflictos de código con las contribuciones de otros miembros del equipo.
 
-### 1. Preparar todos los archivos modificados
-Este comando selecciona todos los cambios nuevos y modificados en tu carpeta de trabajo para ser guardados.
+### 1. Preparar los archivos modificados
+Selecciona todos los cambios nuevos y modificados en el directorio de trabajo para ser confirmados.
 ```bash
 git add .
 ```
 
-### 2. Guardar los cambios con un mensaje explicativo
-Crea un punto de guardado (commit) en tu historial local con una breve descripción de lo que hiciste.
+### 2. Confirmar los cambios localmente (Commit)
+Crea un punto de guardado en el historial local con un mensaje descriptivo de las modificaciones.
 ```bash
-git commit -m "Mi primer commit: estructura del proyecto y vistas iniciales de ALTUM"
+git commit -m "Descripción clara de los cambios realizados"
 ```
 
-### 3. Descargar cambios recientes del servidor (PULL)
-Este paso es **obligatorio** antes de subir tus cosas. Descarga y fusiona los cambios más recientes del repositorio remoto en tu código local.
+### 3. Descargar cambios del repositorio remoto (Pull)
+Descarga y fusiona las modificaciones más recientes del servidor en su copia local.
 ```bash
-git pull
+git pull origin main
 ```
 
-### 4. Subir tus cambios a internet (PUSH)
-Envía tus commits locales guardados al servidor en la nube para actualizar el repositorio remoto de forma segura.
+### 4. Subir los cambios al repositorio remoto (Push)
+Envía las confirmaciones locales al servidor remoto para actualizar la rama principal.
 ```bash
-git push
+git push origin main
 ```
-
-¡Y listo! Tus cambios estarán actualizados y seguros en el repositorio. 🚀
