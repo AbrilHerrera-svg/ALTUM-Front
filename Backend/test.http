@@ -1,0 +1,19 @@
+### Prueba 1: Login Exitoso
+POST http://localhost:3000/usuarios/login
+Content-Type: application/json
+
+{
+  "correo": "abril@correo.com",
+  "contrasena": "123456"
+}
+
+###
+
+### Prueba 2: Login con Contraseña Incorrecta
+POST http://localhost:3000/usuarios/login
+Content-Type: application/json
+
+{
+  "correo": "abril@correo.com",
+  "contrasena": "clave_equivocada"
+}
