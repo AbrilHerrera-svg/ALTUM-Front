@@ -1,30 +1,24 @@
 import express from 'express';
-import mysql from 'mysql2/promise';
-import { setupRoutes } from './usuarios.routes';
+import cors from 'cors';
+import pool from './config/db';
+import { setupRoutes } from './usuarios.routes'; // <-- Importa tus rutas corregidas
 
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+// 🔓 MIDDLEWARES (¡Van antes de las rutas!)
+app.use(cors()); // Permite que React (puerto 5173) se comunique con Node (puerto 3000)
+app.use(express.json()); // Permite que tu backend entienda los JSON que envía el Fetch
 
-// Conexión a tu XAMPP
-const pool = mysql.createPool({
-  host: 'localhost',
-  user: 'root',
-  password: '', 
-  database: 'altum',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
-
-// Conectamos las rutas usando el prefijo '/usuarios'
+// 🛣️ RUTAS
+// Le pasamos el pool de MySQL a tu archivo de rutas
 app.use('/usuarios', setupRoutes(pool));
 
-app.get('/', (req, res) => {
-  res.send('Backend corriendo de forma modular.');
-});
+// ARRANCAR SERVIDOR
 
 app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  
+  console.log('🚀 Servidor Express ejecutándose con éxito');
+  console.log(`🌐 Dirección local: http://localhost:${PORT}`);
+  
 });

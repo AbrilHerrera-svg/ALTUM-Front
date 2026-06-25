@@ -1,81 +1,80 @@
-import { Router, Request, Response } from 'express';
-import mysql from 'mysql2/promise';
+import { Router } from 'express';
+import { Pool } from 'mysql2/promise';
 
-const router = Router();
+export function setupRoutes(pool: Pool) {
+  const router = Router();
 
-// Reutilizamos el pool de conexión (Pasado desde el archivo principal)
-export const setupRoutes = (pool: mysql.Pool) => {
+  // 1. 📝 RUTA PARA REGISTRAR (GUARDAR) USUARIO
+  router.post('/registro', async (req, res) => {
+    const { nombre, apellidos, correo, contraseña, grado, id_rol } = req.body;
 
-  // 1. Obtener todos los usuarios
-  router.get('/', async (req: Request, res: Response) => {
+    if (!nombre || !apellidos || !correo || !contraseña || !id_rol) {
+      return res.status(400).json({ error: 'Faltan campos obligatorios en la petición.' });
+    }
+
     try {
-      const [rows] = await pool.query(`
-        SELECT u.id_usuario, u.nombre, u.apellidos, u.correo, u.grado, r.nombre_rol 
-        FROM USUARIOS u
-        LEFT JOIN ROLES r ON u.id_rol = r.id_rol
-      `);
-      res.json(rows);
-    } catch (error) {
-      res.status(500).json({ error: 'Error al obtener usuarios' });
+      // Cambiado 'usuarios' por 'USUARIOS' en mayúsculas para coincidir con tu script SQL
+      const query = `
+        INSERT INTO USUARIOS (nombre, apellidos, correo, contraseña, grado, id_rol) 
+        VALUES (?, ?, ?, ?, ?, ?)
+      `;
+
+      await pool.query(query, [
+        nombre,
+        apellidos,
+        correo.toLowerCase(),
+        contraseña,
+        grado || null, 
+        id_rol         
+      ]);
+
+      return res.status(201).json({ mensaje: '¡Usuario guardado con éxito! 🎉' });
+
+    } catch (error: any) {
+      console.error('Error al insertar en MySQL:', error);
+      if (error.code === 'ER_DUP_ENTRY') {
+        return res.status(400).json({ error: 'Este correo ya existe.' });
+      }
+      return res.status(500).json({ error: 'Hubo un error en la base de datos.' });
     }
   });
 
-  // 2. Registrar usuario
-  router.post('/', async (req: Request, res: Response) => {
-    const { nombre, apellidos, correo, contrasena, grado, id_rol } = req.body;
-    try {
-      const [result] = await pool.query(
-        'INSERT INTO USUARIOS (nombre, apellidos, correo, contrasena, grado, id_rol) VALUES (?, ?, ?, ?, ?, ?)',
-        [nombre, apellidos, correo, contrasena, grado, id_rol]
-      );
-      res.status(201).json({ message: 'Usuario creado con éxito', id: (result as any).insertId });
-    } catch (error) {
-      res.status(400).json({ error: 'Error al crear el usuario' });
-    }
-  });
+  // 2. 🔑 RUTA PARA EL LOGIN
+  router.post('/login', async (req, res) => {
+    const { correo, contraseña } = req.body;
 
-  // 3. ENDPOINT DE LOGIN (POST)
-  router.post('/login', async (req: Request, res: Response) : Promise<any> => {
-    const { correo, contrasena } = req.body;
-
-    // Validación básica si faltan campos
-    if (!correo || !contrasena) {
-      return res.status(400).json({ error: 'Faltan correo o contraseña' });
+    if (!correo || !contraseña) {
+      return res.status(400).json({ error: 'Por favor, escribe tu correo y contraseña.' });
     }
 
     try {
-      // Buscamos al usuario por su correo en la base de datos
-      const [rows] = await pool.query('SELECT * FROM USUARIOS WHERE correo = ?', [correo]);
-      const usuarios = rows as any[];
+      // Cambiado 'usuarios' por 'USUARIOS'
+      const [rows]: any = await pool.query('SELECT * FROM USUARIOS WHERE correo = ?', [correo.toLowerCase()]);
 
-      // Si no encuentra ninguna coincidencia
-      if (usuarios.length === 0) {
-        return res.status(401).json({ error: 'El correo electrónico no está registrado' });
+      if (rows.length === 0) {
+        return res.status(404).json({ error: 'El usuario no existe.' });
       }
 
-      const usuario = usuarios[0];
+      const usuarioBD = rows[0];
 
-      // Verificamos si la contraseña coincide (Texto plano por ahora para simplificar)
-      if (usuario.contrasena !== contrasena) {
-        return res.status(401).json({ error: 'Contraseña incorrecta' });
+      if (usuarioBD.contraseña !== contraseña) {
+        return res.status(401).json({ error: 'Contraseña incorrecta.' });
       }
 
-      // Si todo coincide, devolvemos los datos del usuario con éxito
-      res.json({
-        message: '¡Login exitoso!',
+      return res.status(200).json({
+        mensaje: '¡Login correcto! 🎉',
         usuario: {
-          id_usuario: usuario.id_usuario,
-          nombre: usuario.nombre,
-          correo: usuario.correo,
-          id_rol: usuario.id_rol
+          nombre: usuarioBD.nombre,
+          grado: usuarioBD.grado,
+          correo: usuarioBD.correo
         }
       });
 
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: 'Error interno en el servidor durante el login' });
+      console.error('Error en el login:', error);
+      return res.status(500).json({ error: 'Error interno del servidor.' });
     }
   });
 
   return router;
-};
+}

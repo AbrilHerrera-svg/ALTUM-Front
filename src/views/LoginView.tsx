@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import type { User } from '../types';
 import './LoginView.css';
 
 const STAR_COLORS = ['#fbbf24', '#f472b6', '#22d3ee', '#fb923c', '#a3e635', '#ffffff', '#e879f9', '#34d399'];
@@ -27,10 +26,7 @@ interface Props {
   onLogin: (name: string, grade: string, email: string, avatar: string) => void;
 }
 
-function obtenerUsuarios(): User[] {
-  try { return JSON.parse(localStorage.getItem('altum_users') || '[]') as User[]; } catch { return []; }
-}
-
+// elimine los arreglos 
 export default function VistaLogin({ onLogin }: Props) {
   const [mode, setMode] = useState<Mode>('login');
 
@@ -55,17 +51,38 @@ export default function VistaLogin({ onLogin }: Props) {
     setMode(m); setError(''); setSuccess(''); setForgotSent(false);
   };
 
-  const IniciarSesion = (e: React.FormEvent) => {
+  const IniciarSesion = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!loginEmail || !loginPassword) { setError('Por favor completa todos los campos.'); return; }
-    const users = obtenerUsuarios();
-    const user = users.find(u => u.email === loginEmail.toLowerCase() && u.password === loginPassword);
-    if (!user) { setError('Correo o contraseña incorrectos. Intenta de nuevo.'); return; }
-    onLogin(user.name, user.grade, user.email, user.avatar ?? '👨‍🚀');
+    
+    // --- CAMBIO DE ARREGLO A BASE DE DATOS ---
+    try {
+      const respuesta = await fetch('http://localhost:3000/usuarios/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          correo: loginEmail.toLowerCase(),
+          contraseña: loginPassword
+        })
+      });
+
+      const datos = await respuesta.json();
+
+      if (!respuesta.ok) {
+        setError(datos.error || 'Correo o contraseña incorrectos. Intenta de nuevo.');
+        return;
+      }
+
+      onLogin(datos.usuario.nombre, datos.usuario.grado || '4° de Primaria', datos.usuario.correo, '👨‍🚀');
+    } catch (err) {
+      console.error(err);
+      setError('Error de conexión con el servidor.');
+    }
+
   };
 
-  const Registrarse = (e: React.FormEvent) => {
+  const Registrarse = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!regName || !regGrade || !regEmail || !regPassword || !regConfirm) {
@@ -73,15 +90,39 @@ export default function VistaLogin({ onLogin }: Props) {
     }
     if (regPassword.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return; }
     if (regPassword !== regConfirm) { setError('Las contraseñas no coinciden.'); return; }
-    const users = obtenerUsuarios();
-    if (users.find(u => u.email === regEmail.toLowerCase())) {
-      setError('Este correo ya está registrado. Inicia sesión.'); return;
+    
+   
+    try {
+      const [nombre, ...restoApellidos] = regName.trim().split(' ');
+      const apellidos = restoApellidos.join(' ') || 'No especificado';
+
+      const respuesta = await fetch('http://localhost:3000/usuarios/registro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre,
+          apellidos,
+          correo: regEmail.toLowerCase(),
+          contraseña: regPassword,
+          grado: regGrade,
+          id_rol: 3
+        })
+      });
+
+      const datos = await respuesta.json();
+
+      if (!respuesta.ok) {
+        setError(datos.error || 'No se pudo registrar el usuario.');
+        return;
+      }
+
+      setSuccess('¡Registro exitoso! Redirigiendo al inicio de sesión...');
+      setTimeout(() => { setLoginEmail(regEmail.toLowerCase()); cambiarModo('login'); }, 1400);
+    } catch (err) {
+      console.error(err);
+      setError('Error de conexión con el servidor.');
     }
-    const newUser: User = { name: regName.trim(), grade: regGrade, email: regEmail.toLowerCase(), password: regPassword };
-    users.push(newUser);
-    localStorage.setItem('altum_users', JSON.stringify(users));
-    setSuccess('¡Registro exitoso! Redirigiendo al inicio de sesión...');
-    setTimeout(() => { setLoginEmail(regEmail.toLowerCase()); cambiarModo('login'); }, 1400);
+   
   };
 
   const RecuperarContrasena = (e: React.FormEvent) => {
@@ -90,6 +131,8 @@ export default function VistaLogin({ onLogin }: Props) {
     if (!forgotEmail) { setError('Ingresa tu correo electrónico.'); return; }
     setForgotSent(true);
   };
+
+  // telimna base datos
 
   return (
     <div className="space-backdrop">
