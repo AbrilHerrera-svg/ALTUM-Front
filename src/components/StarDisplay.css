@@ -1,0 +1,23 @@
+.star-display {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+.sd-star {
+  font-style: normal;
+  transition: transform 0.3s, color 0.3s;
+}
+
+.sd-star.filled {
+  color: #fbbf24;
+  text-shadow: 0 0 8px rgba(251,191,36,0.6);
+}
+
+.sd-star.empty {
+  color: rgba(0,0,0,0.12);
+}
+
+.star-display--sm .sd-star { font-size: 1rem; }
+.star-display--md .sd-star { font-size: 1.6rem; }
+.star-display--lg .sd-star { font-size: 2.4rem; }

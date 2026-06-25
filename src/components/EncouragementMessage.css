@@ -1,0 +1,41 @@
+.enc-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.enc-overlay.show { opacity: 1; }
+.enc-overlay.hide { opacity: 0; }
+
+.enc-bubble {
+  background: white;
+  border-radius: 24px;
+  padding: 24px 32px;
+  text-align: center;
+  max-width: 320px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  animation: encPop 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.enc-bubble--wrong { border-top: 6px solid #ef4444; }
+.enc-bubble--correct { border-top: 6px solid #22c55e; }
+
+@keyframes encPop {
+  from { transform: scale(0.7) translateY(20px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.enc-icon { font-size: 2.8rem; display: block; margin-bottom: 10px; }
+
+.enc-text {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1e1e2e;
+  margin: 0;
+  line-height: 1.4;
+}

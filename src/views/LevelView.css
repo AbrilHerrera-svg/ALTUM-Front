@@ -1,0 +1,289 @@
+.lv-backdrop {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(160deg, #1a0533 0%, #3b0764 40%, #4c1d95 100%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Floating decorative dots */
+.lv-backdrop::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(251,191,36,0.25) 2px, transparent 2px),
+    radial-gradient(circle, rgba(244,114,182,0.2) 2px, transparent 2px),
+    radial-gradient(circle, rgba(34,211,238,0.2) 1.5px, transparent 1.5px);
+  background-size: 120px 120px, 80px 80px, 60px 60px;
+  background-position: 10px 10px, 40px 40px, 70px 20px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.lv-content {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Progress */
+.lv-progress { padding-top: 4px; }
+
+/* ── Question card ── */
+.lv-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 0 0 20px;
+  border-top: 6px solid #7c3aed;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+
+.lv-q-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: white;
+  padding: 8px 18px;
+  border-radius: 0 0 16px 0;
+  letter-spacing: 0.5px;
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+
+.lv-question {
+  font-size: 1.18rem;
+  font-weight: 800;
+  color: #1e1b4b;
+  margin: 0;
+  line-height: 1.5;
+  padding: 0 20px;
+}
+
+/* Tip / hint */
+.lv-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #fffbeb;
+  border: 2px solid #fcd34d;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #92400e;
+  line-height: 1.4;
+  margin: 14px 16px 0;
+  animation: hint-in 0.3s ease;
+}
+
+@keyframes hint-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Options ── */
+.lv-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lv-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+  border: 2.5px solid #e9d5ff;
+  border-radius: 18px;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-family: var(--font-game);
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e1b4b;
+  text-align: left;
+  width: 100%;
+  transition: all 0.18s ease;
+  box-shadow: 0 4px 0 #ddd6fe;
+  position: relative;
+}
+
+.lv-opt:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--topic-color, #7c3aed);
+  box-shadow: 0 6px 0 #c4b5fd;
+}
+
+.lv-opt:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #ddd6fe;
+}
+
+.lv-opt:disabled { cursor: default; }
+
+.lv-opt--correct {
+  background: #f0fdf4 !important;
+  border-color: #22c55e !important;
+  color: #14532d !important;
+  box-shadow: 0 4px 0 #86efac !important;
+  animation: pop-in 0.3s cubic-bezier(0.22,1,0.36,1);
+}
+
+.lv-opt--wrong {
+  background: #fff1f2 !important;
+  border-color: #f43f5e !important;
+  color: #881337 !important;
+  box-shadow: 0 4px 0 #fda4af !important;
+  animation: shake 0.4s ease;
+}
+
+@keyframes pop-in {
+  0%   { transform: scale(0.97); }
+  60%  { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-7px); }
+  40%       { transform: translateX(7px); }
+  60%       { transform: translateX(-4px); }
+  80%       { transform: translateX(4px); }
+}
+
+.lv-opt-letter {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--letter-bg, #7c3aed);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 900;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.lv-opt--correct .lv-opt-letter {
+  background: #22c55e;
+}
+
+.lv-opt--wrong .lv-opt-letter {
+  background: #f43f5e;
+}
+
+.lv-opt-text {
+  flex: 1;
+}
+
+.lv-opt-icon {
+  font-size: 1.3rem;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.lv-opt--correct .lv-opt-icon { color: #22c55e; }
+.lv-opt--wrong .lv-opt-icon   { color: #f43f5e; }
+
+/* ── Hint button ── */
+.lv-hint-btn {
+  background: rgba(251,191,36,0.15);
+  border: 2px dashed #fbbf24;
+  color: #fbbf24;
+  font-family: var(--font-game);
+  font-size: 0.95rem;
+  font-weight: 800;
+  padding: 12px 28px;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.2s;
+  align-self: center;
+  letter-spacing: 0.3px;
+}
+.lv-hint-btn:hover {
+  background: rgba(251,191,36,0.25);
+  transform: scale(1.04);
+}
+
+/* ── Game Over ── */
+.lv-gameover {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px 24px;
+  text-align: center;
+  gap: 16px;
+}
+
+.lv-go-icon {
+  font-size: 5rem;
+  animation: go-bounce 1s ease-in-out infinite;
+}
+
+@keyframes go-bounce {
+  0%, 100% { transform: translateY(0) rotate(-5deg); }
+  50%       { transform: translateY(-14px) rotate(5deg); }
+}
+
+.lv-go-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: white;
+  margin: 0;
+}
+
+.lv-go-sub {
+  font-size: 1rem;
+  color: rgba(255,255,255,0.75);
+  max-width: 320px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.lv-go-btn {
+  width: 100%;
+  max-width: 320px;
+  padding: 16px;
+  border-radius: 18px;
+  font-family: var(--font-game);
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.lv-go-btn--retry {
+  background: linear-gradient(135deg, #7c3aed, #4338ca);
+  color: white;
+  box-shadow: 0 6px 0 #3730a3;
+}
+.lv-go-btn--retry:hover  { transform: translateY(-2px); box-shadow: 0 8px 0 #3730a3; }
+.lv-go-btn--retry:active { transform: translateY(4px);  box-shadow: 0 2px 0 #3730a3; }
+
+.lv-go-btn--back {
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.8);
+  border: 1.5px solid rgba(255,255,255,0.2);
+}
+.lv-go-btn--back:hover { background: rgba(255,255,255,0.18); }

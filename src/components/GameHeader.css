@@ -1,0 +1,76 @@
+.gh-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 20px;
+  background: rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(12px);
+}
+
+.gh-back {
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.25);
+  color: white;
+  font-size: 1.3rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.gh-back:hover { background: rgba(255,255,255,0.25); }
+
+.gh-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gh-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: white;
+  line-height: 1;
+}
+
+.gh-sub {
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.6);
+}
+
+.gh-lives {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.gh-heart {
+  font-size: 1.3rem;
+  transition: transform 0.3s;
+}
+
+.gh-heart.lost {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+
+.gh-heart.alive {
+  animation: heartbeat 0.3s ease;
+}
+
+@keyframes heartbeat {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
