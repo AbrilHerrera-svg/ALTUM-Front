@@ -3,23 +3,6 @@ import SpaceBackdrop from '../components/SpaceBackdrop';
 import SpacePlanets from '../components/SpacePlanets';
 import './LoginView.css';
 
-const STAR_COLORS = ['#fbbf24', '#f472b6', '#22d3ee', '#fb923c', '#a3e635', '#ffffff', '#e879f9', '#34d399'];
-
-interface StarDatum {
-  id: number; x: number; y: number; size: number;
-  color: string; duration: number; delay: number;
-}
-
-const STAR_DATA: StarDatum[] = Array.from({ length: 130 }, (_, i) => ({
-  id: i,
-  x: (i * 37.7 + 13.3) % 100,
-  y: (i * 61.3 + 7.7) % 100,
-  size: i % 4 === 0 ? 4 : i % 3 === 0 ? 3 : 2,
-  color: STAR_COLORS[i % STAR_COLORS.length],
-  duration: 1.5 + (i % 5) * 0.7,
-  delay: (i % 7) * 0.5,
-}));
-
 const GRADES = ['4° de Primaria', '5° de Primaria', '6° de Primaria'];
 
 type Mode = 'login' | 'register' | 'forgot';
@@ -53,38 +36,26 @@ export default function VistaLogin({ onLogin }: Props) {
     setMode(m); setError(''); setSuccess(''); setForgotSent(false);
   };
 
-  const IniciarSesion = async (e: React.FormEvent) => {
+  type UsuarioLocal = { nombre: string; grado: string; correo: string; contraseña: string };
+
+  const getUsuarios = (): UsuarioLocal[] => {
+    try { return JSON.parse(localStorage.getItem('altum_usuarios') || '[]'); } catch { return []; }
+  };
+
+  const IniciarSesion = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!loginEmail || !loginPassword) { setError('Por favor completa todos los campos.'); return; }
-    
-    // --- CAMBIO DE ARREGLO A BASE DE DATOS ---
-    try {
-      const respuesta = await fetch('http://localhost:3000/usuarios/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          correo: loginEmail.toLowerCase(),
-          contraseña: loginPassword
-        })
-      });
 
-      const datos = await respuesta.json();
+    const usuarios = getUsuarios();
+    const usuario = usuarios.find(u => u.correo === loginEmail.toLowerCase() && u.contraseña === loginPassword);
 
-      if (!respuesta.ok) {
-        setError(datos.error || 'Correo o contraseña incorrectos. Intenta de nuevo.');
-        return;
-      }
+    if (!usuario) { setError('Correo o contraseña incorrectos. Intenta de nuevo.'); return; }
 
-      onLogin(datos.usuario.nombre, datos.usuario.grado || '4° de Primaria', datos.usuario.correo, '👨‍🚀');
-    } catch (err) {
-      console.error(err);
-      setError('Error de conexión con el servidor.');
-    }
-
+    onLogin(usuario.nombre, usuario.grado, usuario.correo, '👨‍🚀');
   };
 
-  const Registrarse = async (e: React.FormEvent) => {
+  const Registrarse = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!regName || !regGrade || !regEmail || !regPassword || !regConfirm) {
@@ -92,39 +63,17 @@ export default function VistaLogin({ onLogin }: Props) {
     }
     if (regPassword.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return; }
     if (regPassword !== regConfirm) { setError('Las contraseñas no coinciden.'); return; }
-    
-   
-    try {
-      const [nombre, ...restoApellidos] = regName.trim().split(' ');
-      const apellidos = restoApellidos.join(' ') || 'No especificado';
 
-      const respuesta = await fetch('http://localhost:3000/usuarios/registro', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombre,
-          apellidos,
-          correo: regEmail.toLowerCase(),
-          contraseña: regPassword,
-          grado: regGrade,
-          id_rol: 3
-        })
-      });
-
-      const datos = await respuesta.json();
-
-      if (!respuesta.ok) {
-        setError(datos.error || 'No se pudo registrar el usuario.');
-        return;
-      }
-
-      setSuccess('¡Registro exitoso! Redirigiendo al inicio de sesión...');
-      setTimeout(() => { setLoginEmail(regEmail.toLowerCase()); cambiarModo('login'); }, 1400);
-    } catch (err) {
-      console.error(err);
-      setError('Error de conexión con el servidor.');
+    const usuarios = getUsuarios();
+    if (usuarios.find(u => u.correo === regEmail.toLowerCase())) {
+      setError('Ya existe una cuenta con ese correo.'); return;
     }
-   
+
+    usuarios.push({ nombre: regName.trim(), grado: regGrade, correo: regEmail.toLowerCase(), contraseña: regPassword });
+    localStorage.setItem('altum_usuarios', JSON.stringify(usuarios));
+
+    setSuccess('¡Registro exitoso! Redirigiendo al inicio de sesión...');
+    setTimeout(() => { setLoginEmail(regEmail.toLowerCase()); cambiarModo('login'); }, 1400);
   };
 
   const RecuperarContrasena = (e: React.FormEvent) => {
