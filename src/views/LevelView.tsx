@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import CabeceraJuego from '../components/GameHeader';
 import BarraProgreso from '../components/ProgressBar';
 import MensajeAnimo from '../components/EncouragementMessage';
@@ -37,20 +37,54 @@ export default function VistaNivel({ topic, levelIdx, onComplete, onBack }: Prop
 
   const exercise = exercises[currentQ];
 
-  const Responder = useCallback((opt: string) => {
+  // 🚀 CAMBIO CLAVE: Volvemos la función asíncrona para conectarse al backend de Node.js
+  const Responder = useCallback(async (opt: string) => {
     if (selected !== null || encouragement || showCorrect) return;
+    
     setSelected(opt);
-    if (opt === exercise.correct) {
-      setShowCorrect(true);
-      setEncouragement({ message: elegir(ENCOURAGEMENTS_CORRECT), type: 'correct' });
-    } else {
-      const newLives = lives - 1;
-      setLives(newLives);
-      setTotalWrong(w => w + 1);
-      if (newLives <= 0) { setGameOver(true); }
-      else { setEncouragement({ message: elegir(ENCOURAGEMENTS_WRONG), type: 'wrong' }); }
+
+    try {
+      // Petición POST al servidor para verificar la respuesta del niño
+      
+// En LevelView.tsx, dentro de tu función Responder:
+
+const respuesta = await fetch('http://127.0.0.1:3000/api/ejercicios/verificar', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    alumnoNombre: "Melina",     // El servidor espera 'alumnoNombre'
+    topicId: topic.id,          // 👈 OJO AQUÍ: Tu objeto es 'topic', su propiedad es '.id'
+    levelIndex: levelIdx,       // Tu prop se llama 'levelIdx', el back espera 'levelIndex'
+    exerciseIndex: currentQ,    // Tu estado es 'currentQ', el back espera 'exerciseIndex'
+    respuestaUsuario: opt       // El texto de la opción elegida
+  })
+});
+      const data = await respuesta.json();
+
+      // El servidor nos dice si la respuesta es correcta o no
+      if (data.esCorrecto) {
+        setShowCorrect(true);
+        setEncouragement({ message: elegir(ENCOURAGEMENTS_CORRECT), type: 'correct' });
+      } else {
+        const newLives = lives - 1;
+        setLives(newLives);
+        setTotalWrong(w => w + 1);
+        
+        if (newLives <= 0) { 
+          setGameOver(true); 
+        } else { 
+          setEncouragement({ message: elegir(ENCOURAGEMENTS_WRONG), type: 'wrong' }); 
+        }
+      }
+
+    } catch (error) {
+      console.error("Error al conectar con el servidor de evaluación:", error);
+      alert("Hubo un error de conexión con la central espacial. 🛰️");
+      setSelected(null); // Desbloqueamos las opciones por si falla la red
     }
-  }, [selected, encouragement, showCorrect, exercise, lives]);
+  }, [selected, encouragement, showCorrect, topic.id, levelIdx, currentQ, lives]);
 
   const TerminarMensaje = useCallback(() => {
     setEncouragement(null);
