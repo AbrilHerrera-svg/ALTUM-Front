@@ -17,7 +17,7 @@ pool.getConnection()
     connection.release(); // Libera la conexión para que otros la usen
   })
   .catch(error => {
-    console.error('❌ Error crítico al conectarse a MySQL:', error.message);
+    console.error('Error crítico al conectarse a MySQL:', error.message);
   });
 
 export default pool;

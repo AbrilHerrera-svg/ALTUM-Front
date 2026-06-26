@@ -728,7 +728,10 @@ export const EXERCISES: Record<string, Exercise[][]> = {
   // TEMA: PENSAMIENTO LÓGICO Y PRECÁLCULO
   logic: [
     [
-      { question: '¿Cuál es el siguiente número? 3, 6, 9, 12, _', options: ['13', '14', '15', '18'], correct: '15', tip: 'La diferencia entre cada número es siempre la misma. ¿Cuánto se suma cada vez? 🔢' },
+      { question: '¿Cuál es el siguiente número? 3, 6, 9, 12, _', 
+        options: ['13', '14', '15', '18'], 
+        correct: '15', 
+        tip: 'La diferencia entre cada número es siempre la misma. ¿Cuánto se suma cada vez? 🔢' },
       { question: 'Completa la sucesión: 100, 90, _, 70, 60', options: ['75', '80', '82', '85'], correct: '80', tip: 'La sucesión va bajando. ¿De cuánto en cuánto disminuye? 📉' },
       { question: '¿Cuál es el siguiente número? 1, 4, 7, 10, 13, _', options: ['14', '15', '16', '17'], correct: '16', tip: '4-1=3, 7-4=3... La diferencia es siempre 3. 🎯' },
       { question: 'Sucesión: 2, 5, 8, 11, 14, _', options: ['15', '16', '17', '18'], correct: '17', tip: 'Observa la diferencia entre cada par. Suma 3 al último término. ➕' },

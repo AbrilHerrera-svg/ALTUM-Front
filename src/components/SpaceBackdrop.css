@@ -1,0 +1,46 @@
+.sb-backdrop {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+.sb-star {
+  position: absolute;
+  border-radius: 50%;
+  animation: sb-twinkle ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes sb-twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.7); }
+  50%       { opacity: 1;    transform: scale(1.5); }
+}
+
+.sb-shoot {
+  position: absolute;
+  top: 12%;
+  left: -160px;
+  width: 140px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, #fbbf24 60%, transparent 100%);
+  border-radius: 2px;
+  transform: rotate(32deg);
+  animation: sb-shoot 9s linear infinite;
+  pointer-events: none;
+}
+
+.sb-shoot--s2 {
+  top: 55%;
+  animation-delay: 5.5s;
+  animation-duration: 12s;
+  width: 90px;
+  background: linear-gradient(90deg, transparent 0%, #f472b6 60%, transparent 100%);
+  transform: rotate(28deg);
+}
+
+@keyframes sb-shoot {
+  0%   { left: -160px; opacity: 0; }
+  5%   { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { left: 110vw; opacity: 0; }
+}

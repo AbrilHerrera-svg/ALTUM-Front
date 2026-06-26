@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import SpaceBackdrop from '../components/SpaceBackdrop';
+import SpacePlanets from '../components/SpacePlanets';
 import './LoginView.css';
 
 const STAR_COLORS = ['#fbbf24', '#f472b6', '#22d3ee', '#fb923c', '#a3e635', '#ffffff', '#e879f9', '#34d399'];
@@ -135,35 +137,11 @@ export default function VistaLogin({ onLogin }: Props) {
   // telimna base datos
 
   return (
-    <div className="space-backdrop">
-      {STAR_DATA.map(s => (
-        <div key={s.id} className="star" style={{
-          left: `${s.x}%`, top: `${s.y}%`,
-          width: s.size, height: s.size,
-          background: s.color,
-          boxShadow: `0 0 ${s.size * 2}px ${s.color}`,
-          animationDuration: `${s.duration}s`,
-          animationDelay: `${s.delay}s`,
-        }} />
-      ))}
-
-      <div className="shooting-star" />
-      <div className="shooting-star s2" />
-
-      <div className="deco-saturn">
-        <div className="saturn-body" />
-        <div className="saturn-ring" />
-      </div>
-
-      <div className="deco-moon">
-        <div className="crater" style={{ top: '22%', left: '18%', width: 13, height: 13 }} />
-        <div className="crater" style={{ top: '48%', left: '52%', width: 19, height: 19 }} />
-        <div className="crater" style={{ top: '68%', left: '22%', width: 9,  height: 9  }} />
-        <div className="crater" style={{ top: '30%', left: '65%', width: 11, height: 11 }} />
-      </div>
+    <SpaceBackdrop className="space-backdrop-layout">
+      <SpacePlanets show={['saturn', 'moon']} />
 
       <div className="deco-alien">
-        <svg viewBox="0 0 70 100" width="56" height="80" xmlns="http://www.w3.org/2000/svg">
+        <svg viewBox="0 0 70 100" width="100" height="143" xmlns="http://www.w3.org/2000/svg">
           <line x1="22" y1="8"  x2="10" y2="-6" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round"/>
           <circle cx="9"  cy="-8" r="5" fill="#f0abfc"/>
           <line x1="48" y1="8"  x2="60" y2="-6" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round"/>
@@ -297,6 +275,6 @@ export default function VistaLogin({ onLogin }: Props) {
           </div>
         )}
       </div>
-    </div>
+    </SpaceBackdrop>
   );
 }
