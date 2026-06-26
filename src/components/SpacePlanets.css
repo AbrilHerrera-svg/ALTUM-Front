@@ -1,0 +1,103 @@
+@keyframes sp-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%       { transform: translateY(-14px) rotate(3deg); }
+}
+
+/* ── Saturno ── */
+.sp-saturn {
+  position: absolute;
+  top: 4%;
+  right: 6%;
+  width: 130px;
+  height: 130px;
+  animation: sp-float 7s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sp-saturn-body {
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 32%, #fde68a, #f59e0b 50%, #b45309);
+  box-shadow: 0 0 40px rgba(245,158,11,0.5), inset -14px -14px 28px rgba(0,0,0,0.2);
+  position: relative;
+  z-index: 2;
+}
+
+.sp-saturn-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-57%, -50%) rotateX(72deg);
+  width: 210px;
+  height: 58px;
+  border: 11px solid rgba(253,230,138,0.7);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Luna ── */
+.sp-moon {
+  position: absolute;
+  bottom: 7%;
+  left: 5%;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #e2eaf0, #b0bec8 55%, #8090a0);
+  box-shadow: 0 0 36px rgba(255,255,255,0.2), inset -12px -12px 24px rgba(0,0,0,0.2);
+  animation: sp-float 10s ease-in-out infinite;
+  animation-delay: 3s;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sp-crater {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.15);
+  border: 1.5px solid rgba(0,0,0,0.1);
+}
+
+/* ── Marte ── */
+.sp-mars {
+  position: absolute;
+  top: 55%;
+  right: 3%;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, #fca5a5, #ef4444 50%, #991b1b);
+  box-shadow: 0 0 22px rgba(239,68,68,0.5), inset -8px -8px 16px rgba(0,0,0,0.25);
+  animation: sp-float 8s ease-in-out infinite;
+  animation-delay: 1.5s;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Urano ── */
+.sp-uranus {
+  position: absolute;
+  top: 6%;
+  left: 6%;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, #a5f3fc, #06b6d4 50%, #0e7490);
+  box-shadow: 0 0 20px rgba(6,182,212,0.55), inset -6px -6px 14px rgba(0,0,0,0.2);
+  animation: sp-float 12s ease-in-out infinite;
+  animation-delay: 2s;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .sp-saturn { top: 2%; right: 3%; width: 90px; height: 90px; }
+  .sp-saturn-body { width: 90px; height: 90px; }
+  .sp-saturn-ring { width: 148px; height: 40px; border-width: 8px; }
+  .sp-moon { width: 80px; height: 80px; }
+}

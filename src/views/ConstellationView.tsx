@@ -1,5 +1,7 @@
 import { LEVEL_NAMES } from '../data/topics';
 import type { Topic, Progress } from '../types';
+import SpaceBackdrop from '../components/SpaceBackdrop';
+import SpacePlanets from '../components/SpacePlanets';
 import './ConstellationView.css';
 
 type NodeState = 'locked' | 'unlocked' | 'completed';
@@ -17,16 +19,6 @@ const STAR_POS = [
   [8,  68], [21, 32], [34, 60], [48, 24],
   [59, 56], [71, 28], [83, 62], [93, 38],
 ];
-
-/* Estrellas de fondo */
-const BG_STARS = Array.from({ length: 90 }, (_, i) => ({
-  id: i,
-  x: (i * 37.7 + 13) % 100,
-  y: (i * 61.3 + 7)  % 100,
-  size: i % 5 === 0 ? 3 : i % 3 === 0 ? 2 : 1.5,
-  dur:   1.4 + (i % 5) * 0.6,
-  delay: (i % 7) * 0.4,
-}));
 
 export default function VistaConstelacion({ topic, progress, onSelectLevel, onBack }: Props) {
   const levelNames  = LEVEL_NAMES[topic.id] ?? [];
@@ -53,53 +45,8 @@ export default function VistaConstelacion({ topic, progress, onSelectLevel, onBa
   }));
 
   return (
-    <div className="const-backdrop">
-
-      {/* Estrellas de fondo */}
-      {BG_STARS.map(s => (
-        <div key={s.id} className="const-bg-star" style={{
-          left: `${s.x}%`, top: `${s.y}%`,
-          width: s.size, height: s.size,
-          background: '#ffffff',
-          animationDuration: `${s.dur}s`,
-          animationDelay: `${s.delay}s`,
-        }} />
-      ))}
-
-      {/* Estrellas fugaces */}
-      <div className="const-shoot" style={{
-        top: '14%', width: 130,
-        background: 'linear-gradient(90deg, transparent, #fbbf24, transparent)',
-        transform: 'rotate(30deg)',
-        animationDuration: '9s',
-      }} />
-      <div className="const-shoot" style={{
-        top: '60%', width: 80,
-        background: 'linear-gradient(90deg, transparent, #f472b6, transparent)',
-        transform: 'rotate(28deg)',
-        animationDuration: '13s', animationDelay: '5s',
-      }} />
-
-      {/* ── Planetas decorativos ── */}
-
-      {/* Saturno — arriba derecha */}
-      <div className="cdeco-saturn">
-        <div className="cdeco-saturn-body" />
-        <div className="cdeco-saturn-ring" />
-      </div>
-
-      {/* Luna — abajo izquierda */}
-      <div className="cdeco-moon">
-        <div className="cdeco-crater" style={{ top: '22%', left: '18%', width: 11, height: 11 }} />
-        <div className="cdeco-crater" style={{ top: '48%', left: '52%', width: 16, height: 16 }} />
-        <div className="cdeco-crater" style={{ top: '68%', left: '22%', width: 8,  height: 8  }} />
-      </div>
-
-      {/* Marte — derecha media */}
-      <div className="cdeco-mars" />
-
-      {/* Urano — arriba izquierda */}
-      <div className="cdeco-uranus" />
+    <SpaceBackdrop className="const-backdrop">
+      <SpacePlanets />
 
       {/* ── Header ── */}
       <div className="const-header">
@@ -203,6 +150,6 @@ export default function VistaConstelacion({ topic, progress, onSelectLevel, onBa
           </div>
         </div>
       </div>
-    </div>
+    </SpaceBackdrop>
   );
 }
