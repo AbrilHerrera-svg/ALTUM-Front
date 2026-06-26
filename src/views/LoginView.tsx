@@ -163,7 +163,7 @@ export default function VistaLogin({ onLogin }: Props) {
       </div>
 
       <div className="deco-alien">
-        <svg viewBox="0 0 70 100" width="56" height="80" xmlns="http://www.w3.org/2000/svg">
+        <svg viewBox="0 0 70 100" width="100" height="143" xmlns="http://www.w3.org/2000/svg">
           <line x1="22" y1="8"  x2="10" y2="-6" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round"/>
           <circle cx="9"  cy="-8" r="5" fill="#f0abfc"/>
           <line x1="48" y1="8"  x2="60" y2="-6" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round"/>
