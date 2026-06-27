@@ -36,36 +36,27 @@ export default function VistaLogin({ onLogin }: Props) {
     setMode(m); setError(''); setSuccess(''); setForgotSent(false);
   };
 
-  type UsuarioLocal = { nombre: string; grado: string; correo: string; contraseña: string };
+  const IniciarSesion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!loginEmail || !loginPassword) { setError('Por favor completa todos los campos.'); return; }
 
-  const getUsuarios = (): UsuarioLocal[] => {
-    try { return JSON.parse(localStorage.getItem('altum_usuarios') || '[]'); } catch { return []; }
-  };
+    try {
+      const respuesta = await fetch('http://localhost:3000/api/usuarios');
+      const usuariosServer = await respuesta.json();
 
-  // Alternativa 100% Cliente-Servidor para el botón "Despegar"
-const IniciarSesion = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError('');
-  if (!loginEmail || !loginPassword) { setError('Por favor completa todos los campos.'); return; }
+      const usuario = usuariosServer.find((u: any) => u.correo === loginEmail.toLowerCase());
 
-  try {
-    // Consultamos la lista de usuarios almacenados en la memoria del BackEnd
-    const respuesta = await fetch('http://localhost:3000/api/usuarios');
-    const usuariosServer = await respuesta.json();
-    
-    const usuario = usuariosServer.find((u: any) => u.correo === loginEmail.toLowerCase());
+      if (!usuario) {
+        setError('Correo o contraseña incorrectos. Intenta de nuevo.');
+        return;
+      }
 
-    if (!usuario) { 
-      setError('Correo o contraseña incorrectos. Intenta de nuevo.'); 
-      return; 
+      onLogin(usuario.nombre, usuario.grado, usuario.correo, usuario.avatar || '👨‍🚀');
+    } catch (err) {
+      setError('Error de red al conectar con el servidor.');
     }
-
-    // Si todo coincide, ejecutamos el acceso con los datos del BackEnd
-    onLogin(usuario.nombre, usuario.grado, usuario.correo, usuario.avatar || '👨‍🚀');
-  } catch (err) {
-    setError('Error de red al conectar con el centro de control galáctico.');
-  }
-};
+  };
 
   const Registrarse = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,10 +92,10 @@ const IniciarSesion = async (e: React.FormEvent) => {
       const datos = await respuestaPost.json();
 
       if (respuestaPost.ok) {
-        setSuccess('¡Registro exitoso en el servidor galáctico! Redirigiendo...');
-        setTimeout(() => { 
-          setLoginEmail(regEmail.toLowerCase()); 
-          cambiarModo('login'); 
+        setSuccess('¡Registro exitoso! Redirigiendo...');
+        setTimeout(() => {
+          setLoginEmail(regEmail.toLowerCase());
+          cambiarModo('login');
         }, 1400);
       } else {
         setError(datos.error || 'Error al registrar el usuario.');
