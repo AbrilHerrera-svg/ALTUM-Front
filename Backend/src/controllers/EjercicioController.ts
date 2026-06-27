@@ -3,7 +3,7 @@ import { Ejercicio } from '../models/ejercicio';
 
 export class EjercicioController {
   // Declaramos el catálogo con tipo universal para evitar bloqueos de TypeScript
-  private static catalogoEjercicios: Record<string, any[][]> = {
+  public static catalogoEjercicios: Record<string, any[][]> = {
     proportionality: [
       [
         new Ejercicio('Si 3 manzanas cuestan $15, ¿cuánto cuestan 6 manzanas?', ['$20', '$25', '$30', '$35'], '$30', 'Si duplicas la cantidad, el precio también se duplica. 15 × 2 = ? 🍎'),

@@ -58,28 +58,56 @@ export default function VistaNivel({ topic, levelIdx, onComplete, onBack }: Prop
 
   const exercise = exercises[currentQ];
 
-  // 🚀 Lógica de respuesta local sincronizada con los datos del servidor
-  const Responder = useCallback((opt: string) => {
-    if (selected !== null || encouragement || showCorrect || !exercise) return;
+ // 🚀 CAMBIO CLAVE: Volvemos la función asíncrona para conectarse al backend de Node.js
+  const Responder = useCallback(async (opt: string) => {
+    if (selected !== null || encouragement || showCorrect) return;
     
     setSelected(opt);
 
-    // Comparamos localmente contra el campo .correct enviado por tu controlador
-    if (opt === exercise.correct) {
-      setShowCorrect(true);
-      setEncouragement({ message: elegir(ENCOURAGEMENTS_CORRECT), type: 'correct' });
-    } else {
-      const newLives = lives - 1;
-      setLives(newLives);
-      setTotalWrong(w => w + 1);
-      
-      if (newLives <= 0) { 
-        setGameOver(true); 
-      } else { 
-        setEncouragement({ message: elegir(ENCOURAGEMENTS_WRONG), type: 'wrong' }); 
+    try {
+      // 🎯 SOLUCIÓN: Recuperamos el nombre del niño que inició sesión actual
+      // Si por alguna razón no hay nadie, por seguridad usará "Invitado"
+      const usuarioActual = localStorage.getItem('usuarioNombre') || 'Invitado';
+
+      // Petición POST al servidor para verificar la respuesta del niño
+      // En tu LevelView.tsx, cambia la URL del fetch a esta:
+const respuesta = await fetch('http://127.0.0.1:3000/api/progreso/verificar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          alumnoNombre: usuarioActual,       // 👈 ¡YA ES DINÁMICO! Cambia por cada niño
+          topicId: topic.id,          
+          levelIndex: levelIdx,       
+          exerciseIndex: currentQ,    
+          respuestaUsuario: opt       
+        })
+      });
+      const data = await respuesta.json();
+
+      // El servidor nos dice si la respuesta es correcta o no
+      if (data.esCorrecto) {
+        setShowCorrect(true);
+        setEncouragement({ message: elegir(ENCOURAGEMENTS_CORRECT), type: 'correct' });
+      } else {
+        const newLives = lives - 1;
+        setLives(newLives);
+        setTotalWrong(w => w + 1);
+        
+        if (newLives <= 0) { 
+          setGameOver(true); 
+        } else { 
+          setEncouragement({ message: elegir(ENCOURAGEMENTS_WRONG), type: 'wrong' }); 
+        }
       }
+
+    } catch (error) {
+      console.error("Error al conectar con el servidor de evaluación:", error);
+      alert("Hubo un error de conexión con la central espacial. 🛰️");
+      setSelected(null); 
     }
-  }, [selected, encouragement, showCorrect, exercise, lives]);
+  }, [selected, encouragement, showCorrect, topic.id, levelIdx, currentQ, lives]);
 
   const TerminarMensaje = useCallback(() => {
     setEncouragement(null);

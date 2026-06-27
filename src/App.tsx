@@ -7,21 +7,9 @@ import VistaResultado from './views/ResultView';
 import VistaPerfil from './views/ProfileView';
 import type { Topic, Progress, ViewName } from './types';
 
-// URL de tu API en Express (BackEnd)
-const API_URL = 'http://localhost:3000/api/usuarios';
-
-// Mantener la carga local temporal solo para el progreso de estrellas de los niveles
-const PROGRESS_KEY = 'altum_progress';
-function cargarProgreso(): Progress {
-  try {
-    return JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}') as Progress;
-  } catch {
-    return {};
-  }
-}
-function guardarProgreso(p: Progress): void {
-  localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
-}
+// URLs de tu API en Express (BackEnd)
+const API_URL_USUARIOS = 'http://localhost:3000/api/usuarios';
+const API_URL_PROGRESO = 'http://localhost:3000/api/progreso';
 
 export default function Aplicacion() {
   const [view, setView] = useState<ViewName>('login');
@@ -36,30 +24,28 @@ export default function Aplicacion() {
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
   const [lastStars, setLastStars] = useState(0);
-  const [progress, setProgress] = useState<Progress>(cargarProgreso);
+  
+  // El progreso inicia vacío hasta que el usuario inicie sesión exitosamente
+  const [progress, setProgress] = useState<Progress>({});
 
-  // REQUISITO 3 y 8: Cargar datos iniciales del BackEnd si existieran al arrancar
-  useEffect(() => {
-    fetch(API_URL)
+// 📡 Sincronizar el progreso desde el BackEnd en tiempo real
+ useEffect(() => {
+    if (!userName) return;
+
+    console.log("🛰️ Intentando descargar progreso para el usuario:", userName);
+
+    fetch(`${API_URL_PROGRESO}/${userName}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data && data.length > 0) {
-          // Si ya hay un usuario registrado en el arreglo del BackEnd, lo cargamos
-          const ultimoUsuario = data[data.length - 1];
-          setUserId(ultimoUsuario.id);
-          setUserName(ultimoUsuario.nombre);
-          setUserGrade(ultimoUsuario.grado);
-          setUserEmail(ultimoUsuario.correo);
-          setUserAvatar(ultimoUsuario.avatar);
-        }
+        console.log("📦 ¡Esto es lo que me respondió el BackEnd de verdad!:", data);
+        setProgress(data);
       })
-      .catch((err) => console.error('Error conectando al BackEnd:', err));
-  }, []);
-
+      .catch((err) => console.error('❌ Error de red fatal:', err));
+  }, [userName, view]);
   // REQUISITO 7 y 9: Operación CREATE (POST) al iniciar sesión / registrarse
   const alIniciarSesion = async (name: string, grade: string, email: string, avatar: string) => {
     try {
-      const respuesta = await fetch(API_URL, {
+      const respuesta = await fetch(API_URL_USUARIOS, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -73,15 +59,18 @@ export default function Aplicacion() {
       const datos = await respuesta.json();
       
       if (respuesta.ok) {
-        // Guardamos en el estado de React los datos que nos devolvió el BackEnd (incluyendo el ID generado)
         setUserId(datos.usuario.id);
         setUserName(datos.usuario.nombre);
         setUserGrade(datos.usuario.grado);
         setUserEmail(datos.usuario.correo);
         setUserAvatar(datos.usuario.avatar);
-        setView('dashboard');
-      } else {
-        console.error('Error del servidor:', datos.error);
+        
+        // 🎯 Forzamos un fetch inmediato para que el Dashboard no arranque vacío
+        const resProgreso = await fetch(`${API_URL_PROGRESO}/${datos.usuario.nombre}`);
+        const dataProgreso = await resProgreso.json();
+        setProgress(dataProgreso);
+
+        setView('dashboard'); // Mandamos al mapa espacial
       }
     } catch (error) {
       console.error('Error de red al intentar registrar usuario:', error);
@@ -93,13 +82,13 @@ export default function Aplicacion() {
     if (!userId) return;
 
     try {
-      const respuesta = await fetch(`${API_URL}/${userId}`, {
+      const respuesta = await fetch(`${API_URL_USUARIOS}/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre: name,
           grado: grade,
-          correo: userEmail, // Mantenemos el mismo correo
+          correo: userEmail,
           avatar: avatar
         }),
       });
@@ -123,7 +112,7 @@ export default function Aplicacion() {
     if (!userId) return;
 
     try {
-      const respuesta = await fetch(`${API_URL}/${userId}`, {
+      const respuesta = await fetch(`${API_URL_USUARIOS}/${userId}`, {
         method: 'DELETE',
       });
 
@@ -137,24 +126,39 @@ export default function Aplicacion() {
     }
   };
 
-  // Lógica local del juego y navegación interna
-  const actualizarProgreso = (topicId: string, levelIdx: number, stars: number) => {
-    setProgress(prev => {
-      const next: Progress = {
-        ...prev,
-        [topicId]: {
-          ...prev[topicId],
-          [levelIdx]: {
-            completed: true,
-            stars: Math.max(stars, prev[topicId]?.[levelIdx]?.stars ?? 0),
-          },
-        },
-      };
-      guardarProgreso(next);
-      return next;
-    });
-  };
+  
+  const alCompletarNivel = async (stars: number) => {
+    if (!selectedTopic || selectedLevel === null || !userName) return;
 
+    try {
+      // 🚀 POST al BackEnd para asegurar las medallas reales en el servidor
+      const respuesta = await fetch(`${API_URL_PROGRESO}/guardar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          alumnoNombre: userName,
+          topicId: selectedTopic.id,
+          levelIndex: selectedLevel, 
+          stars: stars
+        })
+      });
+
+      if (respuesta.ok) {
+        const datos = await respuesta.json();
+        
+        // 🎯 Sincronización en caliente: Actualizamos la ram de React con la respuesta del BackEnd
+        setProgress(prev => ({
+          ...prev,
+          [selectedTopic.id]: datos.progresoActualizado
+        }));
+      }
+    } catch (error) {
+      console.error('Error guardando avance en la base de datos:', error);
+    }
+
+    setLastStars(stars);
+    setView('result'); // Desplegamos la pantalla del trofeo
+  };
   const alSeleccionarTema = (topic: Topic) => {
     setSelectedTopic(topic);
     setView('constellation');
@@ -163,14 +167,6 @@ export default function Aplicacion() {
   const alSeleccionarNivel = (levelIdx: number) => {
     setSelectedLevel(levelIdx);
     setView('level');
-  };
-
-  const alCompletarNivel = (stars: number) => {
-    if (selectedTopic && selectedLevel !== null) {
-      actualizarProgreso(selectedTopic.id, selectedLevel, stars);
-    }
-    setLastStars(stars);
-    setView('result');
   };
 
   const alSiguienteNivel = () => {
@@ -186,13 +182,12 @@ export default function Aplicacion() {
     setUserAvatar('👨‍🚀');
     setSelectedTopic(null);
     setSelectedLevel(null);
+    setProgress({}); // Limpiamos el progreso en pantalla al salir
     setView('login');
   };
 
   const alReiniciarProgreso = () => {
-    const empty: Progress = {};
-    setProgress(empty);
-    guardarProgreso(empty);
+    setProgress({});
   };
 
   return (
@@ -222,7 +217,7 @@ export default function Aplicacion() {
           progress={progress}
           onBack={() => setView('dashboard')}
           onUpdate={alActualizarPerfil}
-          onLogout={alEliminarCuenta} // Mapeado al DELETE en el backend
+          onLogout={alEliminarCuenta}
           onResetProgress={alReiniciarProgreso}
         />
       )}
