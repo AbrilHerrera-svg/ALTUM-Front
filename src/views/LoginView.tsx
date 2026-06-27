@@ -42,20 +42,32 @@ export default function VistaLogin({ onLogin }: Props) {
     try { return JSON.parse(localStorage.getItem('altum_usuarios') || '[]'); } catch { return []; }
   };
 
-  const IniciarSesion = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    if (!loginEmail || !loginPassword) { setError('Por favor completa todos los campos.'); return; }
+  // Alternativa 100% Cliente-Servidor para el botón "Despegar"
+const IniciarSesion = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError('');
+  if (!loginEmail || !loginPassword) { setError('Por favor completa todos los campos.'); return; }
 
-    const usuarios = getUsuarios();
-    const usuario = usuarios.find(u => u.correo === loginEmail.toLowerCase() && u.contraseña === loginPassword);
+  try {
+    // Consultamos la lista de usuarios almacenados en la memoria del BackEnd
+    const respuesta = await fetch('http://localhost:3000/api/usuarios');
+    const usuariosServer = await respuesta.json();
+    
+    const usuario = usuariosServer.find((u: any) => u.correo === loginEmail.toLowerCase());
 
-    if (!usuario) { setError('Correo o contraseña incorrectos. Intenta de nuevo.'); return; }
+    if (!usuario) { 
+      setError('Correo o contraseña incorrectos. Intenta de nuevo.'); 
+      return; 
+    }
 
-    onLogin(usuario.nombre, usuario.grado, usuario.correo, '👨‍🚀');
-  };
+    // Si todo coincide, ejecutamos el acceso con los datos del BackEnd
+    onLogin(usuario.nombre, usuario.grado, usuario.correo, usuario.avatar || '👨‍🚀');
+  } catch (err) {
+    setError('Error de red al conectar con el centro de control galáctico.');
+  }
+};
 
-  const Registrarse = (e: React.FormEvent) => {
+  const Registrarse = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!regName || !regGrade || !regEmail || !regPassword || !regConfirm) {
@@ -64,16 +76,42 @@ export default function VistaLogin({ onLogin }: Props) {
     if (regPassword.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return; }
     if (regPassword !== regConfirm) { setError('Las contraseñas no coinciden.'); return; }
 
-    const usuarios = getUsuarios();
-    if (usuarios.find(u => u.correo === regEmail.toLowerCase())) {
-      setError('Ya existe una cuenta con ese correo.'); return;
+    try {
+      // 1. Primero consultamos si el correo ya está registrado en el BackEnd
+      const respuestaGet = await fetch('http://localhost:3000/api/usuarios');
+      const usuariosServer = await respuestaGet.json();
+      
+      if (usuariosServer.find((u: any) => u.correo === regEmail.toLowerCase())) {
+        setError('Ya existe una cuenta con ese correo.'); return;
+      }
+
+      // 2. Si el correo está libre, enviamos el POST para registrarlo en la memoria del BackEnd
+      const respuestaPost = await fetch('http://localhost:3000/api/usuarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: regName.trim(),
+          grado: regGrade,
+          correo: regEmail.toLowerCase(),
+          contraseña: regPassword, // Pasamos la contraseña para la validación del Login
+          avatar: '👨‍🚀'
+        })
+      });
+
+      const datos = await respuestaPost.json();
+
+      if (respuestaPost.ok) {
+        setSuccess('¡Registro exitoso en el servidor galáctico! Redirigiendo...');
+        setTimeout(() => { 
+          setLoginEmail(regEmail.toLowerCase()); 
+          cambiarModo('login'); 
+        }, 1400);
+      } else {
+        setError(datos.error || 'Error al registrar el usuario.');
+      }
+    } catch (err) {
+      setError('Error de red. No se pudo guardar el usuario en el BackEnd.');
     }
-
-    usuarios.push({ nombre: regName.trim(), grado: regGrade, correo: regEmail.toLowerCase(), contraseña: regPassword });
-    localStorage.setItem('altum_usuarios', JSON.stringify(usuarios));
-
-    setSuccess('¡Registro exitoso! Redirigiendo al inicio de sesión...');
-    setTimeout(() => { setLoginEmail(regEmail.toLowerCase()); cambiarModo('login'); }, 1400);
   };
 
   const RecuperarContrasena = (e: React.FormEvent) => {

@@ -1,14 +1,12 @@
-import React, { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import CabeceraJuego from '../components/GameHeader';
 import BarraProgreso from '../components/ProgressBar';
 import MensajeAnimo from '../components/EncouragementMessage';
-import { EXERCISES } from '../data/exercises';
 import { ENCOURAGEMENTS_WRONG, ENCOURAGEMENTS_CORRECT, LEVEL_NAMES } from '../data/topics';
-import type { Topic, EncouragementType } from '../types';
+import type { Topic, EncouragementType, Exercise } from '../types';
 import './LevelView.css';
 
 const MAX_LIVES = 3;
-const EXERCISES_PER_LEVEL = 4;
 const LETTER_COLORS = ['#7c3aed', '#0891b2', '#d97706', '#db2777'];
 
 function elegir<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -23,8 +21,10 @@ interface Props {
 }
 
 export default function VistaNivel({ topic, levelIdx, onComplete, onBack }: Props) {
-  const exercises = EXERCISES[topic.id]?.[levelIdx] ?? [];
-  const levelName = LEVEL_NAMES[topic.id]?.[levelIdx] ?? `Nivel ${levelIdx + 1}`;
+  // 🛰️ Estados de red para el catálogo dinámico
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const [currentQ, setCurrentQ] = useState(0);
   const [lives, setLives] = useState(MAX_LIVES);
@@ -35,62 +35,57 @@ export default function VistaNivel({ topic, levelIdx, onComplete, onBack }: Prop
   const [gameOver, setGameOver] = useState(false);
   const [showCorrect, setShowCorrect] = useState(false);
 
+  const levelName = LEVEL_NAMES[topic.id]?.[levelIdx] ?? `Nivel ${levelIdx + 1}`;
+
+  // 📡 Descarga inicial del nivel completo desde Express usando GET
+  useEffect(() => {
+    setLoading(true);
+    setErrorMsg('');
+    fetch(`http://localhost:3000/api/ejercicios/${topic.id}/${levelIdx}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('No se pudo obtener la misión estelar.');
+        return res.json();
+      })
+      .then((data: Exercise[]) => {
+        setExercises(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setErrorMsg(err.message);
+        setLoading(false);
+      });
+  }, [topic.id, levelIdx]);
+
   const exercise = exercises[currentQ];
 
-  // 🚀 CAMBIO CLAVE: Volvemos la función asíncrona para conectarse al backend de Node.js
-  const Responder = useCallback(async (opt: string) => {
-    if (selected !== null || encouragement || showCorrect) return;
+  // 🚀 Lógica de respuesta local sincronizada con los datos del servidor
+  const Responder = useCallback((opt: string) => {
+    if (selected !== null || encouragement || showCorrect || !exercise) return;
     
     setSelected(opt);
 
-    try {
-      // Petición POST al servidor para verificar la respuesta del niño
+    // Comparamos localmente contra el campo .correct enviado por tu controlador
+    if (opt === exercise.correct) {
+      setShowCorrect(true);
+      setEncouragement({ message: elegir(ENCOURAGEMENTS_CORRECT), type: 'correct' });
+    } else {
+      const newLives = lives - 1;
+      setLives(newLives);
+      setTotalWrong(w => w + 1);
       
-// En LevelView.tsx, dentro de tu función Responder:
-
-const respuesta = await fetch('http://127.0.0.1:3000/api/ejercicios/verificar', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    alumnoNombre: "Melina",     // El servidor espera 'alumnoNombre'
-    topicId: topic.id,          // 👈 OJO AQUÍ: Tu objeto es 'topic', su propiedad es '.id'
-    levelIndex: levelIdx,       // Tu prop se llama 'levelIdx', el back espera 'levelIndex'
-    exerciseIndex: currentQ,    // Tu estado es 'currentQ', el back espera 'exerciseIndex'
-    respuestaUsuario: opt       // El texto de la opción elegida
-  })
-});
-      const data = await respuesta.json();
-
-      // El servidor nos dice si la respuesta es correcta o no
-      if (data.esCorrecto) {
-        setShowCorrect(true);
-        setEncouragement({ message: elegir(ENCOURAGEMENTS_CORRECT), type: 'correct' });
-      } else {
-        const newLives = lives - 1;
-        setLives(newLives);
-        setTotalWrong(w => w + 1);
-        
-        if (newLives <= 0) { 
-          setGameOver(true); 
-        } else { 
-          setEncouragement({ message: elegir(ENCOURAGEMENTS_WRONG), type: 'wrong' }); 
-        }
+      if (newLives <= 0) { 
+        setGameOver(true); 
+      } else { 
+        setEncouragement({ message: elegir(ENCOURAGEMENTS_WRONG), type: 'wrong' }); 
       }
-
-    } catch (error) {
-      console.error("Error al conectar con el servidor de evaluación:", error);
-      alert("Hubo un error de conexión con la central espacial. 🛰️");
-      setSelected(null); // Desbloqueamos las opciones por si falla la red
     }
-  }, [selected, encouragement, showCorrect, topic.id, levelIdx, currentQ, lives]);
+  }, [selected, encouragement, showCorrect, exercise, lives]);
 
   const TerminarMensaje = useCallback(() => {
     setEncouragement(null);
     if (showCorrect) {
       const next = currentQ + 1;
-      if (next >= EXERCISES_PER_LEVEL) {
+      if (next >= exercises.length) {
         onComplete(totalWrong === 0 ? 3 : totalWrong <= 2 ? 2 : 1);
       } else {
         setCurrentQ(next); setSelected(null); setShowHint(false); setShowCorrect(false);
@@ -98,13 +93,17 @@ const respuesta = await fetch('http://127.0.0.1:3000/api/ejercicios/verificar', 
     } else {
       setSelected(null); setShowHint(false);
     }
-  }, [showCorrect, currentQ, totalWrong, onComplete]);
+  }, [showCorrect, currentQ, totalWrong, onComplete, exercises.length]);
 
   const Reintentar = () => {
     setCurrentQ(0); setLives(MAX_LIVES); setTotalWrong(0);
     setSelected(null); setShowHint(false); setGameOver(false);
     setShowCorrect(false); setEncouragement(null);
   };
+
+  if (loading) return <div className="text-white text-center mt-20 text-xl font-bold animate-pulse">🛸 Conectando con la base de datos estelar...</div>;
+  if (errorMsg) return <div className="text-red-400 text-center mt-20 font-semibold">❌ Error: {errorMsg}</div>;
+  if (exercises.length === 0) return <div className="text-white text-center mt-20">No hay misiones espaciales en este cuadrante.</div>;
 
   if (gameOver) {
     return (
@@ -131,12 +130,12 @@ const respuesta = await fetch('http://127.0.0.1:3000/api/ejercicios/verificar', 
 
       <div className="lv-content" style={{ '--topic-color': topic.color, '--topic-gradient': topic.gradient } as React.CSSProperties}>
         <div className="lv-progress">
-          <BarraProgreso current={currentQ} total={EXERCISES_PER_LEVEL} color={topic.color} />
+          <BarraProgreso current={currentQ} total={exercises.length} color={topic.color} />
         </div>
 
         <div className="lv-card" style={{ borderTopColor: topic.color }}>
           <div className="lv-q-badge" style={{ background: topic.gradient }}>
-            {topic.emoji} Pregunta {currentQ + 1}/{EXERCISES_PER_LEVEL}
+            {topic.emoji} Pregunta {currentQ + 1}/{exercises.length}
           </div>
           <p className="lv-question">{exercise.question}</p>
           {showHint && (
