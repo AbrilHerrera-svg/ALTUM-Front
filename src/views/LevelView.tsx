@@ -37,7 +37,7 @@ export default function VistaNivel({ topic, levelIdx, onComplete, onBack }: Prop
 
   const levelName = LEVEL_NAMES[topic.id]?.[levelIdx] ?? `Nivel ${levelIdx + 1}`;
 
-  // 📡 Descarga inicial del nivel completo desde Express usando GET
+  // Descarga inicial del nivel completo desde Express usando GET
   useEffect(() => {
     setLoading(true);
     setErrorMsg('');
