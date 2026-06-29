@@ -8,22 +8,50 @@ El proyecto tiene como objetivo facilitar el aprendizaje de conceptos matemátic
 
 ## Estructura del Proyecto
 
-El código fuente del frontend está organizado de la siguiente manera directamente en la raíz del repositorio:
+El proyecto está dividido en dos partes: un **Frontend** en React y un **Backend** en Node.js/Express.
 
 ```
-src/
-├── assets/            # Recursos visuales (ilustraciones, avatares, iconos)
-├── components/        # Componentes de UI reutilizables
-│   ├── common/        # Botones 3D interactivos, tarjetas de juego y cajas de texto
-│   └── game/          # Elementos específicos de las dinámicas (vidas, premios)
-├── views/             # Vistas principales de la aplicación (Pantallas)
-│   ├── LoginView.jsx      # Pantalla de bienvenida y registro de nombre
-│   ├── MenuView.jsx       # Tablero de selección de niveles (Fácil y Difícil)
-│   └── ActivitiesView.jsx # Interfaz del juego con preguntas, pistas y barra de progreso
-├── App.css            # Estilos dedicados de las vistas y animaciones
-├── index.css          # Estilos globales, variables de color (HSL) y tipografía redondeada
-├── App.jsx            # Controlador central de la navegación por estados de React
-└── main.jsx           # Punto de entrada de React + Vite
+ALTUM/
+├── src/                        # Código fuente del frontend (React + TypeScript)
+│   ├── assets/                 # Recursos visuales (imágenes, íconos SVG)
+│   ├── components/             # Componentes de UI reutilizables
+│   │   ├── EncouragementMessage # Mensajes de ánimo al alumno
+│   │   ├── GameHeader          # Encabezado con vidas y progreso
+│   │   ├── ProgressBar         # Barra de progreso del nivel
+│   │   ├── SpaceBackdrop       # Fondo animado del espacio
+│   │   ├── SpacePlanets        # Planetas decorativos
+│   │   └── StarDisplay         # Visualización de estrellas ganadas
+│   ├── data/
+│   │   ├── exercises.ts        # Catálogo local de ejercicios (respaldo)
+│   │   └── topics.ts           # Temas y materias disponibles
+│   ├── views/                  # Pantallas principales de la aplicación
+│   │   ├── LoginView.tsx       # Inicio de sesión y registro
+│   │   ├── DashboardView.tsx   # Panel principal del alumno
+│   │   ├── ConstellationView   # Mapa de niveles por tema
+│   │   ├── LevelView.tsx       # Pantalla de ejercicios activos
+│   │   ├── ResultView.tsx      # Resultados y estrellas al completar nivel
+│   │   ├── ProfileView.tsx     # Perfil del usuario
+│   │   ├── MenuView.jsx        # Menú de navegación
+│   │   └── ActivitiesView.jsx  # Vista de actividades disponibles
+│   ├── types.ts                # Tipos TypeScript compartidos
+│   ├── App.tsx                 # Controlador central de navegación y conexión al backend
+│   └── main.tsx                # Punto de entrada de React + Vite
+├── Backend/                    # Servidor API en Node.js + Express + TypeScript
+│   └── src/
+│       ├── controllers/
+│       │   ├── UsuarioController.ts   # CRUD de usuarios en memoria
+│       │   ├── EjercicioController.ts # Catálogo completo de ejercicios
+│       │   └── ProgresoController.ts  # Guardado y consulta del progreso
+│       ├── routes/
+│       │   ├── usuario.routes.ts      # Rutas GET/POST/PUT/DELETE /api/usuarios
+│       │   ├── ejercicio.routes.ts    # Ruta GET /api/ejercicios/:tema/:nivel
+│       │   └── progreso.routes.ts     # Rutas GET/POST /api/progreso
+│       ├── config/
+│       │   └── db.ts                  # Configuración de conexión (sin BD activa)
+│       └── index.ts                   # Punto de entrada del servidor Express
+├── public/                     # Archivos estáticos (favicon, íconos SVG)
+├── proyecto_educativo.sql      # Script SQL de referencia de la base de datos
+└── index.html                  # HTML base de la aplicación (Vite)
 ```
 
 ---
