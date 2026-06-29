@@ -7,7 +7,7 @@ import VistaResultado from './views/ResultView';
 import VistaPerfil from './views/ProfileView';
 import type { Topic, Progress, ViewName } from './types';
 
-// URLs de tu API en Express (BackEnd)
+// URLs de API en Express (BackEnd)
 const API_URL_USUARIOS = 'http://localhost:3000/api/usuarios';
 const API_URL_PROGRESO = 'http://localhost:3000/api/progreso';
 
