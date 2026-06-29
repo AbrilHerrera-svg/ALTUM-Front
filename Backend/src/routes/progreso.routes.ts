@@ -1,4 +1,4 @@
-// Backend/src/routes/progreso.routes.ts
+
 import { Router } from 'express';
 import { ProgresoController } from '../controllers/ProgresoController';
 

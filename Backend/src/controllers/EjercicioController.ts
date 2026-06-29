@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import { Ejercicio } from '../models/ejercicio';
-
+//ejercicios//
 export class EjercicioController {
-  // Declaramos el catálogo con tipo universal para evitar bloqueos de TypeScript
+  
   public static catalogoEjercicios: Record<string, any[][]> = {
     proportionality: [
       [
@@ -309,7 +309,7 @@ public obtenerPorTemaYNivel(req: Request, res: Response): void {
     const { tema, nivel } = req.params;
     const nivelIdx = Number(nivel);
 
-    // 1. Obtenemos el catálogo desde la clase
+    // catalogo de la clase
     const catalogo = EjercicioController.catalogoEjercicios;
 
     // 2. Verificamos que tema sea string y una llave válida del catálogo
@@ -322,13 +322,13 @@ public obtenerPorTemaYNivel(req: Request, res: Response): void {
     const claveValida = tema as keyof typeof catalogo;
     const listaTemas = catalogo[claveValida];
 
-    // 4. Validamos el nivel
+    // validar nivel
     if (!listaTemas || !listaTemas[nivelIdx]) {
       res.status(404).json({ error: 'Ejercicios no encontrados para este nivel' });
       return;
     }
 
-    // Convertimos a JSON plano de forma segura
+   
     const ejerciciosJSON = listaTemas[nivelIdx].map((ejercicio: any) => {
       if (typeof ejercicio.toJSON === 'function') {
         return ejercicio.toJSON();

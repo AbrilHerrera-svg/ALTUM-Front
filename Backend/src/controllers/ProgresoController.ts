@@ -2,13 +2,12 @@
 import { Request, Response } from 'express';
 import { EjercicioController } from './EjercicioController';
 
-// Base de datos simulada compatible
+
 export const progresoAlumnos: Record<string, any> = {};
 
 export class ProgresoController {
   
-  // 1. Método para obtener el progreso de un alumno
-// 1. Método para obtener el progreso de un alumno
+//progreso de un alumno
 public obtenerProgreso(req: Request, res: Response): void {
   const { alumnoNombre } = req.params;
 
@@ -22,7 +21,7 @@ public obtenerProgreso(req: Request, res: Response): void {
   res.status(200).json(progreso);
 }
 
-// 2. Método para guardar o actualizar el avance
+// guardar avance
 public guardarProgreso(req: Request, res: Response): void {
   const { alumnoNombre, topicId, levelIndex, exerciseIndex, respuestaUsuario, stars } = req.body;
   const levelIdx = String(levelIndex);
@@ -32,7 +31,7 @@ public guardarProgreso(req: Request, res: Response): void {
     return;
   }
 
-  // Convertimos la base de datos simulada a 'any'
+  
   const DB = progresoAlumnos as any;
 
   if (!DB[alumnoNombre]) {
@@ -45,7 +44,7 @@ public guardarProgreso(req: Request, res: Response): void {
 
   const temaProgreso = DB[alumnoNombre][topicId];
 
-  // CASO A: Fin de nivel (Guarda las estrellas que me mostraste en el trofeo)
+  // guardar estrellas
   if (stars !== undefined) {
     const estrellasAnteriores = temaProgreso[levelIdx]?.stars || 0;
     temaProgreso[levelIdx] = {
