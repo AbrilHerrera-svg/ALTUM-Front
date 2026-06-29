@@ -2,21 +2,21 @@ import { Request, Response } from 'express';
 import { Usuario } from '../models/Usuario';
 
 export class UsuarioController {
-  // Arreglo estático en memoria para simular nuestra base de datos volátil
+  
   private static listaUsuarios: Usuario[] = [
-    // Datos semilla iniciales para probar de inmediato
+    
     new Usuario('Astronauta Inicial', 'Universidad', 'altum@utcancun.edu.mx', '👨‍🚀', 1)
   ];
   private static contadorId = 2;
 
-  // READ (GET) - Obtener todos los usuarios
+  
   public listar(req: Request, res: Response): void {
-    // Convertimos cada objeto de la clase Usuario a JSON plano
+
     const resultado = UsuarioController.listaUsuarios.map(usuario => usuario.toJSON());
     res.status(200).json(resultado);
   }
 
-  // CREATE (POST) - Agregar un nuevo usuario
+  
   public crear(req: Request, res: Response): void {
     const { nombre, grado, correo, avatar } = req.body;
 
@@ -25,7 +25,7 @@ export class UsuarioController {
       return;
     }
 
-    // Instanciamos la clase aplicando POO
+    
     const nuevoUsuario = new Usuario(
       nombre, 
       grado, 
@@ -38,7 +38,7 @@ export class UsuarioController {
     res.status(201).json({ mensaje: 'Creado con éxito', usuario: nuevoUsuario.toJSON() });
   }
 
-  // UPDATE (PUT) - Modificar un usuario existente por su ID
+  
   public actualizar(req: Request, res: Response): void {
     const { id } = req.params;
     const { nombre, grado, correo, avatar } = req.body;
@@ -50,7 +50,7 @@ export class UsuarioController {
       return;
     }
 
-    // Reemplazamos con una nueva instancia de la clase manteniendo el mismo ID
+    
     UsuarioController.listaUsuarios[indice] = new Usuario(nombre, grado, correo, avatar, Number(id));
     res.status(200).json({ 
       mensaje: 'Actualizado con éxito', 
@@ -58,7 +58,7 @@ export class UsuarioController {
     });
   }
 
-  // DELETE (DELETE) - Eliminar un usuario de la lista por su ID
+ 
   public eliminar(req: Request, res: Response): void {
     const { id } = req.params;
     
@@ -69,7 +69,7 @@ export class UsuarioController {
       return;
     }
 
-    // Eliminamos el elemento de nuestro arreglo en memoria
+    
     UsuarioController.listaUsuarios.splice(indice, 1);
     res.status(200).json({ mensaje: 'Usuario eliminado del arreglo temporal' });
   }
