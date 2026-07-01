@@ -1,54 +1,102 @@
-import { LEVEL_NAMES } from '../data/topics';
+// ============================================================
+// ConstellationView.tsx — MAPA DE CONSTELACIÓN (NIVELES)
+// Muestra los 8 niveles de un tema como estrellas en el espacio.
+// ============================================================
+
+import { LEVEL_NAMES }          from '../data/topics';
 import type { Topic, Progress } from '../types';
-import SpaceBackdrop from '../components/SpaceBackdrop';
-import SpacePlanets from '../components/SpacePlanets';
+import SpaceBackdrop            from '../components/SpaceBackdrop';
+import SpacePlanets             from '../components/SpacePlanets';
 import './ConstellationView.css';
 
 type NodeState = 'locked' | 'unlocked' | 'completed';
 interface LevelStatus { state: NodeState; stars: number; }
 
 interface Props {
-  topic: Topic;
-  progress: Progress;
+  topic:         Topic;
+  progress:      Progress;
   onSelectLevel: (idx: number) => void;
-  onBack: () => void;
+  onBack:        () => void;
 }
 
-/* Posiciones (left%, top%) de cada estrella */
+// ── ARREGLO DE POSICIONES ────────────────────────────────────
+// Un arreglo de arreglos (arreglo bidimensional / matriz).
+// Cada elemento interno es un par [left%, top%] que indica
+// dónde se coloca cada estrella en el mapa.
+//
+// Visualización:
+//   STAR_POS[0] = [8,  68] → estrella 1: left:8%,  top:68%  (abajo izquierda)
+//   STAR_POS[1] = [21, 32] → estrella 2: left:21%, top:32%  (arriba)
+//   STAR_POS[2] = [34, 60] → estrella 3: left:34%, top:60%  (abajo)
+//   ... etc.
+// Se zigzaguean arriba y abajo para formar una constelación visual.
 const STAR_POS = [
   [8,  68], [21, 32], [34, 60], [48, 24],
   [59, 56], [71, 28], [83, 62], [93, 38],
 ];
 
 export default function VistaConstelacion({ topic, progress, onSelectLevel, onBack }: Props) {
-  const levelNames  = LEVEL_NAMES[topic.id] ?? [];
-  const topicProg   = progress[topic.id] ?? {};
-  const totalLevels = levelNames.length || 8;
 
+  // ?? es el operador "nullish coalescing":
+  // LEVEL_NAMES[topic.id] ?? []
+  // Si LEVEL_NAMES[topic.id] es null o undefined → usa []
+  // Si existe → usa el valor real
+  const levelNames  = LEVEL_NAMES[topic.id] ?? [];
+  const topicProg   = progress[topic.id] ?? {}; // progreso del alumno en este tema (o {} si no hay)
+  const totalLevels = levelNames.length || 8;   // siempre 8 (|| 8 por si el arreglo estuviera vacío)
+
+  // ── FUNCIÓN: DETERMINAR EL ESTADO DE UN NIVEL ────────────────
   const obtenerEstado = (idx: number): LevelStatus => {
-    const lvl = topicProg[idx];
+    const lvl = topicProg[idx]; // accedemos al progreso del nivel con índice idx
+
+    // ── IF #1: ¿El nivel ya está completado? ─────────────────
+    // lvl?.completed usa optional chaining: si lvl no existe, no rompe el código
     if (lvl?.completed) return { state: 'completed', stars: lvl.stars };
-    if (idx === 0)      return { state: 'unlocked',  stars: 0 };
+
+    // ── IF #2: ¿Es el primer nivel? ──────────────────────────
+    // El nivel 0 siempre está disponible (no requiere completar nada antes)
+    if (idx === 0) return { state: 'unlocked', stars: 0 };
+
+    // ── IF #3: ¿El nivel anterior está completado? ───────────
+    // Para desbloquear el nivel idx, el nivel idx-1 debe estar completado
+    // topicProg[idx - 1]?.completed → accede al nivel anterior con optional chaining
     if (topicProg[idx - 1]?.completed) return { state: 'unlocked', stars: 0 };
+
+    // Si ninguno de los anteriores fue true → el nivel está bloqueado
     return { state: 'locked', stars: 0 };
   };
 
-  const totalStars     = Object.values(topicProg).reduce((s, l) => s + (l.stars ?? 0), 0);
-  const completedCount = Object.values(topicProg).filter(l => l.completed).length;
-  const maxStars       = totalLevels * 3;
+  // ── ESTADÍSTICAS TOTALES DEL TEMA ────────────────────────────
+  // Object.values() extrae los valores del objeto topicProg como arreglo
+  // .reduce() suma todas las estrellas: empieza en 0, va acumulando
+  const totalStars = Object.values(topicProg).reduce((s, l) => s + (l.stars ?? 0), 0);
 
+  // .filter(l => l.completed) → solo los niveles completados → .length los cuenta
+  const completedCount = Object.values(topicProg).filter(l => l.completed).length;
+  const maxStars       = totalLevels * 3; // máximo = 3 estrellas × 8 niveles = 24
+
+  // ── CONSTRUIR EL ARREGLO DE NIVELES ─────────────────────────
+  // Array.from({ length: totalLevels }, (_, i) => {...}) crea un arreglo de 8 elementos.
+  // Por cada posición i (0 al 7), genera un objeto con toda la info del nivel.
+  //
+  // El operador spread ...obtenerEstado(i) "desempaca" el objeto que devuelve la función:
+  //   obtenerEstado(0) → { state: 'unlocked', stars: 0 }
+  //   ...{ state: 'unlocked', stars: 0 } → agrega state y stars al objeto directamente
   const levels = Array.from({ length: totalLevels }, (_, i) => ({
-    idx: i,
-    name: levelNames[i] ?? `Nivel ${i + 1}`,
-    pos: STAR_POS[i] ?? [10 + i * 11, 50],
-    ...obtenerEstado(i),
+    idx:  i,
+    name: levelNames[i] ?? `Nivel ${i + 1}`, // nombre o fallback "Nivel X"
+    pos:  STAR_POS[i] ?? [10 + i * 11, 50],  // posición o fallback distribuido
+    ...obtenerEstado(i),                       // agrega: state y stars
   }));
+  // Resultado: arreglo de 8 objetos como:
+  // [ {idx:0, name:'Proporciones Básicas', pos:[8,68], state:'completed', stars:3},
+  //   {idx:1, name:'Tablas de Proporc.', pos:[21,32], state:'unlocked', stars:0},
+  //   {idx:2, ..., state:'locked', stars:0}, ... ]
 
   return (
     <SpaceBackdrop className="const-backdrop">
       <SpacePlanets />
 
-      {/* ── Header ── */}
       <div className="const-header">
         <button className="const-back" onClick={onBack}>← Temas</button>
         <div className="const-header-info">
@@ -60,71 +108,95 @@ export default function VistaConstelacion({ topic, progress, onSelectLevel, onBa
         </div>
       </div>
 
-      {/* ── Mapa de constelación ── */}
       <div className="const-map-wrap">
         <div className="const-map">
 
-          {/* Líneas SVG */}
+          {/* ── Líneas SVG entre estrellas ── */}
           <svg className="const-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
             {levels.map((lv, i) => {
+
+              // ── IF #4: ¿Es el último nivel? ──────────────
+              // La última estrella no tiene siguiente, así que no dibujamos línea
               if (i === levels.length - 1) return null;
-              const next = levels[i + 1];
-              const lit  = lv.state !== 'locked' && next.state !== 'locked';
+
+              const next = levels[i + 1]; // el siguiente nivel en el arreglo
+
+              // La línea se ilumina (dorada) si AMBOS niveles están desbloqueados/completados
+              // !== 'locked' → true si el estado es 'unlocked' O 'completed'
+              // && → ambas condiciones deben ser true
+              const lit = lv.state !== 'locked' && next.state !== 'locked';
+
               return (
                 <line
                   key={i}
-                  x1={lv.pos[0]}   y1={lv.pos[1]}
+                  x1={lv.pos[0]}   y1={lv.pos[1]}   // lv.pos[0] = left%, lv.pos[1] = top%
                   x2={next.pos[0]} y2={next.pos[1]}
+                  // OPERADOR TERNARIO: si lit → color dorado, si no → color gris transparente
                   stroke={lit ? 'rgba(251,191,36,0.5)' : 'rgba(255,255,255,0.08)'}
                   strokeWidth="0.45"
+                  // Si está iluminada → línea continua, si no → punteada
                   strokeDasharray={lit ? 'none' : '1.4,1.4'}
                 />
               );
             })}
           </svg>
 
-          {/* Nodos */}
+          {/* ── Nodos (estrellas) del mapa ── */}
           {levels.map(lv => (
             <div
               key={lv.idx}
+              // Template literal para construir la clase CSS según el estado:
+              // 'star-node star-node--completed', 'star-node star-node--locked', etc.
               className={`star-node star-node--${lv.state}`}
               style={{ left: `${lv.pos[0]}%`, top: `${lv.pos[1]}%` }}
+              // ── IF en línea (&&): solo ejecuta onSelectLevel si NO está bloqueado ─
+              // lv.state !== 'locked' && onSelectLevel(lv.idx)
+              // Si lv.state es 'locked' → la primera parte es false → no ejecuta lo segundo
+              // Es equivalente a: if (lv.state !== 'locked') onSelectLevel(lv.idx)
               onClick={() => lv.state !== 'locked' && onSelectLevel(lv.idx)}
             >
-              {/* Halo pulsante */}
+              {/* ── IF con && (renderizado condicional) ── */}
+              {/* Solo muestra el halo si el nivel está disponible para jugar */}
               {lv.state === 'unlocked' && (
                 <div className="star-halo" style={{ width: 68, height: 68, background: 'rgba(167,139,250,0.4)' }} />
               )}
 
-              {/* Estrella con forma de clip-path */}
               <div className={`star-dot star-dot--${lv.state}`}>
+                {/* TERNARIO: si está bloqueado muestra 🔒, si no muestra el número */}
                 {lv.state === 'locked'
                   ? <span className="star-lock">🔒</span>
                   : <span className="star-num">{lv.idx + 1}</span>
+                  // +1 porque los índices van de 0 a 7 pero mostramos del 1 al 8
                 }
               </div>
 
-              {/* Puntuación */}
+              {/* Solo muestra las estrellas ★★★ si el nivel está completado */}
               {lv.state === 'completed' && (
                 <div className="star-score">
-                  {[1,2,3].map(n => (
-                    <span key={n} className={`score-pip ${n <= lv.stars ? 'score-pip--on' : 'score-pip--off'}`}>★</span>
+                  {/* Arreglo [1,2,3] para generar 3 puntos de estrellas */}
+                  {/* Cada punto se "enciende" si su número n es ≤ las estrellas ganadas */}
+                  {[1, 2, 3].map(n => (
+                    <span
+                      key={n}
+                      // TERNARIO: si n ≤ lv.stars → encendida, si no → apagada
+                      className={`score-pip ${n <= lv.stars ? 'score-pip--on' : 'score-pip--off'}`}
+                    >★</span>
                   ))}
                 </div>
               )}
 
+              {/* Solo muestra "¡Jugar!" si está disponible */}
               {lv.state === 'unlocked' && (
                 <span className="score-play">¡Jugar!</span>
               )}
 
-              {/* Tooltip */}
               <div className="star-label">{lv.name}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── Footer ── */}
+      {/* ── Pie de página con estadísticas ── */}
       <div className="const-footer">
         <div className="footer-stat">
           <span className="footer-icon">⭐</span>
@@ -136,9 +208,7 @@ export default function VistaConstelacion({ topic, progress, onSelectLevel, onBa
             <span className="footer-desc">Estrellas</span>
           </div>
         </div>
-
         <div className="footer-divider" />
-
         <div className="footer-stat">
           <span className="footer-icon">🏆</span>
           <div className="footer-text">

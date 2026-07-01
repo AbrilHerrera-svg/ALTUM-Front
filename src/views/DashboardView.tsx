@@ -1,56 +1,131 @@
+// ============================================================
+// DashboardView.tsx — MAPA ESPACIAL (MENÚ PRINCIPAL)
+// Muestra una tarjeta por cada tema con progreso y estrellas.
+// ============================================================
+
 import React from 'react';
 import MostrarEstrellas from '../components/StarDisplay';
-import { TOPICS } from '../data/topics';
+import { TOPICS }       from '../data/topics';
 import type { Progress } from '../types';
 import './DashboardView.css';
 
+// ── ¿QUÉ ES ESTE OBJETO? (INTERFACE) ────────────────────────
+// StarDatum es un "molde" que describe qué propiedades tiene cada estrella de fondo.
+// No es un arreglo — es la DEFINICIÓN de cómo se ve cada elemento del arreglo.
 interface StarDatum {
-  id: number; x: number; y: number; size: number;
-  color: string; dur: number; del: number;
+  id: number;    // número único para identificar cada estrella (clave de React)
+  x: number;     // posición horizontal en % (0 = izquierda, 100 = derecha)
+  y: number;     // posición vertical en %   (0 = arriba,    100 = abajo)
+  size: number;  // tamaño en píxeles (2 o 3)
+  color: string; // color en hexadecimal (ej: '#fbbf24')
+  dur: number;   // duración de la animación de parpadeo en segundos
+  del: number;   // retraso antes de que empiece a parpadear (para que no parpaden juntas)
 }
 
+// ── ARREGLO DE ESTRELLAS DE FONDO ───────────────────────────
+// Array.from({ length: 80 }, función) crea un arreglo de 80 elementos.
+// El segundo parámetro es una función que se ejecuta por cada elemento:
+//   _ → el elemento (lo ignoramos, por eso es _)
+//   i → el índice actual (0, 1, 2, ..., 79)
+//
+// Usamos fórmulas matemáticas en vez de Math.random() para que las estrellas
+// siempre aparezcan en las mismas posiciones (son predecibles, no aleatorias).
 const BG_STARS: StarDatum[] = Array.from({ length: 80 }, (_, i) => ({
   id: i,
+
+  // % es el operador módulo (residuo de la división).
+  // (i * 37.7 + 13) % 100 siempre da un número entre 0 y 99.9
+  // Distribuye las estrellas de forma que no se amontonen.
   x: (i * 37.7 + 13) % 100,
-  y: (i * 61.3 + 7) % 100,
+  y: (i * 61.3 + 7)  % 100,
+
+  // i % 3 === 0 → cada 3 estrellas (0, 3, 6, 9...) el tamaño es 3, las demás son 2
   size: i % 3 === 0 ? 3 : 2,
-  color: ['#fbbf24','#f472b6','#22d3ee','#a3e635','#ffffff'][i % 5],
-  dur: 1.5 + (i % 5) * 0.6,
-  del: (i % 7) * 0.4,
+  // ↑ Esto es un OPERADOR TERNARIO: condición ? valorSiTrue : valorSiFalse
+  // Es un if/else en una sola línea.
+
+  // i % 5 da 0, 1, 2, 3, 4, 0, 1, 2... → elige uno de los 5 colores de forma cíclica
+  color: ['#fbbf24', '#f472b6', '#22d3ee', '#a3e635', '#ffffff'][i % 5],
+  // ↑ Arreglo de 5 colores, accedemos con [i % 5] para rotar entre ellos
+
+  dur: 1.5 + (i % 5) * 0.6,  // duración entre 1.5s y 4.1s
+  del: (i % 7) * 0.4,        // retraso entre 0s y 2.4s (ciclo de 7)
 }));
 
+// ── PROPS ────────────────────────────────────────────────────
 interface Props {
-  userName: string;
-  userGrade: string;
-  userAvatar: string;
-  progress: Progress;
+  userName:      string;
+  userGrade:     string;
+  userAvatar:    string;
+  progress:      Progress;
   onSelectTopic: (topic: (typeof TOPICS)[number]) => void;
-  onProfile: () => void;
-  onLogout: () => void;
+  onProfile:     () => void;
+  onLogout:      () => void;
 }
 
 export default function VistaPrincipal({ userName, userGrade, userAvatar, progress, onSelectTopic, onProfile, onLogout }: Props) {
+
+  // ── FUNCIÓN: CALCULAR ESTRELLAS DE UN TEMA ───────────────────
   const obtenerEstrellas = (topicId: string, levelCount: number) => {
+
+    // ── IF #1: ¿El alumno tiene progreso en este tema? ────────
+    // Si progress["numeric"] no existe, devuelve 0 estrellas ganadas
+    // y el total máximo (levelCount × 3)
     if (!progress[topicId]) return { earned: 0, total: levelCount * 3 };
+
+    // Object.values(objeto) extrae SOLO LOS VALORES del objeto (ignora las claves).
+    // Ejemplo:
+    //   progress["numeric"] = { "0": {stars:3}, "1": {stars:2}, "2": {stars:1} }
+    //   Object.values(...)  = [ {stars:3}, {stars:2}, {stars:1} ]
+    //   → un ARREGLO con los objetos de progreso de cada nivel
+    //
+    // .reduce(función, valorInicial) recorre el arreglo acumulando un resultado.
+    //   s  → acumulador (empieza en 0)
+    //   l  → elemento actual del arreglo
+    //   s + (l.stars ?? 0) → suma las estrellas del nivel actual al acumulador
+    //   ?? 0 → si l.stars es null o undefined, usa 0
+    //
+    // Ejemplo paso a paso:
+    //   valores = [ {stars:3}, {stars:2}, {stars:1} ]
+    //   iteración 1: s=0,  l={stars:3} → resultado: 3
+    //   iteración 2: s=3,  l={stars:2} → resultado: 5
+    //   iteración 3: s=5,  l={stars:1} → resultado: 6
+    //   earned = 6
     const earned = Object.values(progress[topicId]).reduce((s, l) => s + (l.stars ?? 0), 0);
     return { earned, total: levelCount * 3 };
   };
 
+  // ── FUNCIÓN: CONTAR NIVELES COMPLETADOS ─────────────────────
   const obtenerProgresoTema = (topicId: string) => {
+
+    // ── IF #2: ¿Hay progreso en este tema? ───────────────────
     if (!progress[topicId]) return 0;
+
+    // .filter(condición) crea un NUEVO arreglo solo con los elementos que cumplen la condición.
+    // .filter(l => l.completed) → solo los niveles donde completed es true
+    //
+    // Ejemplo:
+    //   valores = [ {completed:true}, {completed:false}, {completed:true} ]
+    //   .filter(l => l.completed) = [ {completed:true}, {completed:true} ]
+    //   .length = 2  (dos niveles completados)
     return Object.values(progress[topicId]).filter(l => l.completed).length;
   };
 
   return (
     <div className="dash-backdrop">
+
+      {/* ── Renderizar las 80 estrellas de fondo ── */}
+      {/* .map() transforma cada objeto del arreglo BG_STARS en un elemento <div> de React */}
       {BG_STARS.map(s => (
         <div key={s.id} className="dash-star" style={{
-          left: `${s.x}%`, top: `${s.y}%`,
-          width: s.size, height: s.size,
-          background: s.color,
-          boxShadow: `0 0 ${s.size * 2}px ${s.color}`,
-          animationDuration: `${s.dur}s`,
-          animationDelay: `${s.del}s`,
+          left:             `${s.x}%`,
+          top:              `${s.y}%`,
+          width:            s.size,
+          height:           s.size,
+          background:       s.color,
+          boxShadow:        `0 0 ${s.size * 2}px ${s.color}`,
+          animationDuration:`${s.dur}s`,
+          animationDelay:   `${s.del}s`,
         }} />
       ))}
 
@@ -64,6 +139,7 @@ export default function VistaPrincipal({ userName, userGrade, userAvatar, progre
           <div className="dash-header-top">
             <button className="dash-avatar-btn" onClick={onProfile} title="Ver perfil">
               <span className="dash-avatar">{userAvatar || '🚀'}</span>
+              {/* || '🚀' → si userAvatar está vacío, muestra el cohete por defecto */}
             </button>
             <div>
               <h1 className="dash-welcome">¡Hola, {userName}!</h1>
@@ -74,15 +150,23 @@ export default function VistaPrincipal({ userName, userGrade, userAvatar, progre
           <p className="dash-tagline">Elige tu misión matemática 🌌</p>
         </div>
 
+        {/* ── Tarjetas de temas ── */}
+        {/* TOPICS es un arreglo con los 6 temas definido en data/topics.ts */}
+        {/* .map() genera una tarjeta <button> por cada tema */}
         <div className="dash-topics">
           {TOPICS.map((topic) => {
+            // Para cada tema calculamos sus estadísticas
             const { earned, total } = obtenerEstrellas(topic.id, topic.levelCount);
             const completed = obtenerProgresoTema(topic.id);
+
+            // Math.round() redondea al entero más cercano
+            // (completed / topic.levelCount) * 100 da el porcentaje de progreso
+            // Ejemplo: 3 completados de 8 niveles → (3/8)*100 = 37.5 → Math.round = 38%
             const pct = Math.round((completed / topic.levelCount) * 100);
 
             return (
               <button
-                key={topic.id}
+                key={topic.id} // React necesita una "key" única por cada elemento del .map()
                 className="dash-topic-card"
                 onClick={() => onSelectTopic(topic)}
                 style={{ '--tc': topic.color, '--tg': topic.gradient, '--ts': topic.shadow } as React.CSSProperties}
@@ -92,12 +176,16 @@ export default function VistaPrincipal({ userName, userGrade, userAvatar, progre
                   <h2 className="dtc-title">{topic.title}</h2>
                   <p className="dtc-desc">{topic.description}</p>
                   <div className="dtc-progress-row">
+                    {/* La barra crece dinámicamente según el porcentaje calculado */}
                     <div className="dtc-pbar-track">
                       <div className="dtc-pbar-fill" style={{ width: `${pct}%` }} />
                     </div>
                     <span className="dtc-pct">{completed}/{topic.levelCount} niveles</span>
                   </div>
                   <div className="dtc-stars-row">
+                    {/* Math.floor → redondea hacia abajo (piso) */}
+                    {/* Math.max(1, completed) → evita dividir entre 0 si no hay completados */}
+                    {/* Math.min(3, ...) → nunca muestra más de 3 estrellas */}
                     <MostrarEstrellas stars={Math.min(3, Math.floor(earned / Math.max(1, completed)))} size="sm" />
                     <span className="dtc-star-count">⭐ {earned}/{total}</span>
                   </div>

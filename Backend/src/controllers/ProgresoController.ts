@@ -1,59 +1,84 @@
 // ============================================================
 // ProgresoController.ts — CONTROLADOR DE PROGRESO
-// Maneja el guardado y consulta del progreso de cada alumno.
 //
-// El progreso se guarda en MEMORIA RAM como un objeto anidado:
+// El progreso se guarda en un OBJETO ANIDADO (no un arreglo).
+// Un objeto usa llaves { } y guarda pares de clave:valor.
+//
+// Estructura del objeto progresoAlumnos:
 // {
-//   "Abril": {                        ← nombre del alumno
-//     "numeric": {                    ← id del tema
-//       "0": { completed: true, stars: 3 },  ← nivel 0, 3 estrellas
-//       "1": { completed: true, stars: 2 }   ← nivel 1, 2 estrellas
+//   "Abril": {                              ← clave: nombre del alumno
+//     "numeric": {                          ← clave: id del tema
+//       "0": { completed: true, stars: 3 }, ← clave: índice del nivel
+//       "1": { completed: true, stars: 2 }
+//     },
+//     "statistics": {
+//       "0": { completed: true, stars: 1 }
+//     }
+//   },
+//   "Melina": {
+//     "logic": {
+//       "0": { completed: true, stars: 3 }
 //     }
 //   }
 // }
+//
+// La diferencia entre arreglo [] y objeto {}:
+//   Arreglo → accedes por NÚMERO:  lista[0], lista[1], lista[2]
+//   Objeto  → accedes por NOMBRE:  obj["Abril"], obj["numeric"]
 // ============================================================
 
 import { Request, Response } from 'express';
-import { EjercicioController } from './EjercicioController'; // para acceder al catálogo de ejercicios
+import { EjercicioController } from './EjercicioController';
 
-// Base de datos en memoria: objeto vacío que se va llenando conforme los alumnos juegan
+// Objeto vacío que actúa como base de datos en memoria RAM.
+// Record<string, any> = objeto cuyas claves son strings y valores pueden ser cualquier cosa.
 export const progresoAlumnos: Record<string, any> = {};
+
 
 export class ProgresoController {
 
-  // ── OBTENER PROGRESO ─────────────────────────────────────────
-  // Responde a: GET /api/progreso/:alumnoNombre
-  // Devuelve todo el progreso de un alumno específico
+  // ── OBTENER PROGRESO → GET /api/progreso/:alumnoNombre ───────
   public obtenerProgreso(req: Request, res: Response): void {
-    const { alumnoNombre } = req.params; // el nombre viene en la URL: /api/progreso/Abril
+    const { alumnoNombre } = req.params;
 
+    // ── IF #1: Validar que el nombre sea texto ────────────────
+    // typeof comprueba el tipo de dato de una variable
+    // typeof "Abril" → "string"
+    // typeof 123     → "number"
+    // typeof undefined → "undefined"
     if (typeof alumnoNombre !== 'string') {
       res.status(400).json({ error: 'Falta el nombre del alumno' });
       return;
     }
 
-    // Si el alumno no tiene progreso todavía, devuelve un objeto vacío {}
-    // El || {} evita que devuelva undefined
+    // Accedemos al objeto con la clave del alumno.
+    // Si el alumno no tiene progreso todavía, progresoAlumnos["Abril"] es undefined.
+    // El operador || {} devuelve el objeto vacío como valor por defecto.
+    //
+    // Ejemplo:
+    //   progresoAlumnos["Abril"] existe     → devuelve su progreso
+    //   progresoAlumnos["Nuevo"] no existe  → devuelve {}
     const progreso = progresoAlumnos[alumnoNombre] || {};
 
     res.status(200).json(progreso);
   }
 
-  // ── GUARDAR / VERIFICAR ──────────────────────────────────────
-  // Responde a: POST /api/progreso/guardar   → guarda estrellas al terminar un nivel
-  // Responde a: POST /api/progreso/verificar → verifica si la respuesta del alumno es correcta
-  //
-  // Usa el mismo método para ambas rutas porque distingue el caso por el body:
-  //   - Si llega "stars"           → CASO A: guardar progreso del nivel
-  //   - Si llega "respuestaUsuario"→ CASO B: verificar si la respuesta es correcta
+
+  // ── GUARDAR / VERIFICAR → POST /api/progreso/guardar y /verificar ─
   public guardarProgreso(req: Request, res: Response): void {
     const { alumnoNombre, topicId, levelIndex, exerciseIndex, respuestaUsuario, stars } = req.body;
 
-    // String() convierte el número a texto para usarlo como clave del objeto
-    // (las claves de objetos en JS siempre son strings)
+    // String() convierte el número a texto para usarlo como clave del objeto.
+    // Los objetos de JavaScript usan strings como claves, aunque escribas un número.
+    // String(2) → "2"
     const levelIdx = String(levelIndex);
 
-    // Validación: los tres campos básicos son obligatorios para cualquier caso
+    // ── IF #2: Validar que llegaron los datos mínimos ─────────
+    // La condición tiene 3 partes unidas por || (OR lógico):
+    //   - !alumnoNombre → true si el nombre no llegó
+    //   - !topicId      → true si el tema no llegó
+    //   - levelIndex === undefined → true si el nivel no llegó
+    // Si CUALQUIERA de los tres es true, respondemos con error
     if (!alumnoNombre || !topicId || levelIndex === undefined) {
       res.status(400).json({ error: 'Faltan datos requeridos.' });
       return;
@@ -61,52 +86,93 @@ export class ProgresoController {
 
     const DB = progresoAlumnos as any;
 
-    // Creamos la estructura anidada si no existe — como crear carpetas vacías
-    if (!DB[alumnoNombre])          DB[alumnoNombre] = {};          // crea la "carpeta" del alumno
-    if (!DB[alumnoNombre][topicId]) DB[alumnoNombre][topicId] = {}; // crea la "carpeta" del tema
+    // ── IF #3 y #4: Crear la estructura anidada si no existe ──
+    // Antes de guardar datos, verificamos que existan las "carpetas" del objeto.
+    // Es como crear directorios antes de guardar un archivo.
+    //
+    // IF #3: ¿Existe la "carpeta" del alumno?
+    if (!DB[alumnoNombre]) {
+      DB[alumnoNombre] = {}; // crea un objeto vacío para ese alumno
+    }
+    // Ahora DB["Abril"] = {} existe seguro.
 
-    const temaProgreso = DB[alumnoNombre][topicId]; // acceso directo al progreso de este tema
+    // IF #4: ¿Existe la "carpeta" del tema dentro del alumno?
+    if (!DB[alumnoNombre][topicId]) {
+      DB[alumnoNombre][topicId] = {}; // crea un objeto vacío para ese tema
+    }
+    // Ahora DB["Abril"]["numeric"] = {} existe seguro.
 
-    // ── CASO A: Guardar estrellas al completar el nivel ────────
+    const temaProgreso = DB[alumnoNombre][topicId]; // acceso directo al nivel de profundidad correcto
+
+    // ── IF #5: ¿Llegaron estrellas? (CASO A: Guardar nivel completado) ─
+    // "stars !== undefined" es true cuando el body SÍ trajo el campo stars.
+    // Este caso se activa al terminar todas las preguntas de un nivel.
     if (stars !== undefined) {
-      // ?. es "optional chaining": si temaProgreso[levelIdx] no existe, devuelve undefined en vez de error
+
+      // ?. es "optional chaining":
+      // temaProgreso[levelIdx]?.stars
+      // Si temaProgreso[levelIdx] NO existe → devuelve undefined (no rompe el código)
+      // Si temaProgreso[levelIdx] SÍ existe → accede a .stars normalmente
+      // El || 0 al final usa 0 si el resultado es undefined
       const estrellasAnteriores = temaProgreso[levelIdx]?.stars || 0;
 
+      // Guardamos el progreso del nivel.
+      // Math.max(a, b) devuelve el mayor de los dos números.
+      // Así NUNCA bajamos las estrellas: si antes tenías 3 y ahora sacas 1, queda en 3.
+      //
+      // Ejemplo:
+      //   Math.max(1, 3) → 3  (tenías 3 antes, mantenemos 3)
+      //   Math.max(3, 1) → 3  (ganaste 3 ahora, actualizamos a 3)
+      //   Math.max(2, 2) → 2  (igual, se queda igual)
       temaProgreso[levelIdx] = {
         completed: true,
-        // Math.max guarda siempre el mayor puntaje — si antes tenías 3 estrellas y ahora sacas 1, queda en 3
         stars: Math.max(Number(stars), estrellasAnteriores)
       };
 
       res.status(200).json({
         success: true,
-        progresoActualizado: temaProgreso // devuelve el progreso completo del tema actualizado
+        progresoActualizado: temaProgreso // devuelve el tema completo actualizado
       });
-      return;
+      return; // salimos aquí, no necesitamos ejecutar el CASO B
     }
 
     // ── CASO B: Verificar si la respuesta del alumno es correcta ─
-    const exerciseIdx = Number(exerciseIndex);
+    // Si llegamos aquí, es porque NO llegaron estrellas en el body.
+    // Esto pasa cuando el alumno hace clic en una opción de respuesta.
 
-    // Accedemos al catálogo de ejercicios del EjercicioController para comparar la respuesta
+    const exerciseIdx = Number(exerciseIndex); // índice de la pregunta actual (0-3)
     const catalogo: any = EjercicioController.catalogoEjercicios;
-    let esCorrecto = false;
+    let esCorrecto = false; // empieza como false por seguridad
 
-    // Verificamos que exista el tema, el nivel y el ejercicio en el catálogo
+    // ── IF #6: Verificar que exista el ejercicio en el catálogo ─
+    // Es una condición de 3 partes unidas con && (AND lógico):
+    //   - catalogo                       → el catálogo existe
+    //   - catalogo[topicId]              → el tema existe en el catálogo
+    //   - catalogo[topicId][Number(levelIdx)] → el nivel existe en ese tema
+    // Si las 3 son true, accedemos al ejercicio para comparar la respuesta
     if (catalogo && catalogo[topicId] && catalogo[topicId][Number(levelIdx)]) {
       const ejercicioReal = catalogo[topicId][Number(levelIdx)][exerciseIdx];
 
+      // ── IF #7: Verificar que el ejercicio y la respuesta existen ─
       if (ejercicioReal && respuestaUsuario) {
-        // Limpiamos ambas respuestas antes de comparar:
-        // .trim()       → quita espacios al inicio y al final
-        // .toLowerCase()→ convierte a minúsculas
-        // .replace(/\s+/g, '') → quita todos los espacios internos
+        // Función que limpia texto para comparar de forma justa:
+        //   .trim()              → quita espacios al inicio y al final
+        //   .toLowerCase()       → convierte a minúsculas
+        //   .replace(/\s+/g, '') → quita TODOS los espacios internos
+        //     /\s+/g es una expresión regular:
+        //       \s  → cualquier espacio en blanco
+        //       +   → uno o más
+        //       g   → global (reemplaza TODOS, no solo el primero)
         const limpiar = (txt: string) => txt.trim().toLowerCase().replace(/\s+/g, '');
+
+        // Comparamos la respuesta del alumno con la correcta del catálogo
+        // === verifica igualdad estricta (mismo valor Y mismo tipo)
         esCorrecto = limpiar(ejercicioReal.correct) === limpiar(respuestaUsuario);
       }
     }
 
-    // Devuelve al frontend si la respuesta fue correcta o no
+    // Devolvemos si la respuesta fue correcta o no
+    // El frontend usa esto para mostrar ✓ o ✗ y restar vida si fue incorrecta
     res.status(200).json({ esCorrecto });
   }
 }

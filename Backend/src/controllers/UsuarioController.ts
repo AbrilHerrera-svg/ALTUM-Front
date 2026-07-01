@@ -1,64 +1,94 @@
 // ============================================================
 // UsuarioController.ts — CONTROLADOR DE USUARIOS
-// Contiene la lógica de negocio para manejar usuarios.
 // Implementa las 4 operaciones CRUD:
 //   C → Create  (crear/registrar)
 //   R → Read    (listar)
 //   U → Update  (actualizar perfil)
 //   D → Delete  (eliminar cuenta)
-//
-// IMPORTANTE: Los usuarios se guardan en MEMORIA RAM (un array).
-// Esto significa que si reinicias el servidor, los usuarios se borran.
 // ============================================================
 
-import { Request, Response } from 'express'; // tipos de TypeScript para req y res
-import { Usuario } from '../models/Usuario'; // importamos la clase Usuario
+import { Request, Response } from 'express';
+import { Usuario } from '../models/Usuario';
 
 export class UsuarioController {
 
-  // Array ESTÁTICO: existe uno solo para toda la app, no uno por petición.
-  // "static" significa que pertenece a la CLASE, no a cada instancia.
-  // Es como una variable global compartida entre todas las peticiones.
+  // ── ¿QUÉ ES ESTE ARREGLO? ───────────────────────────────────
+  // Un ARREGLO (array) es una lista ordenada de elementos.
+  // Aquí guardamos objetos de tipo Usuario.
+  // Se escribe con corchetes [ ] y los elementos van separados por comas.
+  //
+  // Ejemplo visual de cómo se ve en memoria:
+  //   listaUsuarios = [
+  //     Usuario { id:1, nombre:'Astronauta Inicial', ... },  ← posición 0
+  //     Usuario { id:2, nombre:'Abril', ... },               ← posición 1
+  //     Usuario { id:3, nombre:'Melina', ... }               ← posición 2
+  //   ]
+  //
+  // "static" → existe UN SOLO arreglo para toda la app (no uno por petición)
+  // "private" → solo esta clase puede acceder a él
   private static listaUsuarios: Usuario[] = [
     new Usuario('Astronauta Inicial', 'Universidad', 'altum@utcancun.edu.mx', '👨‍🚀', 1)
   ];
 
-  // Contador para asignar IDs únicos a cada nuevo usuario
-  private static contadorId = 2; // empieza en 2 porque el usuario inicial ya tiene el 1
+  // Contador para generar IDs únicos. Empieza en 2 porque el usuario de arriba ya tiene el 1.
+  private static contadorId = 2;
 
-  // ── LISTAR ──────────────────────────────────────────────────
-  // Responde a: GET /api/usuarios
-  // Devuelve todos los usuarios registrados en memoria
+
+  // ── LISTAR → GET /api/usuarios ───────────────────────────────
   public listar(req: Request, res: Response): void {
-    // .map() transforma cada objeto Usuario en su versión JSON plana (sin métodos)
+
+    // .map() recorre CADA elemento del arreglo y lo transforma.
+    // Es como hacer una fila de fotocopias: por cada Usuario original,
+    // produces una versión JSON plana (sin métodos).
+    //
+    // Si listaUsuarios tiene 3 usuarios:
+    //   .map(usuario => usuario.toJSON())
+    // produce un nuevo arreglo con 3 objetos JSON:
+    //   [ {id:1, nombre:'...'}, {id:2, nombre:'...'}, {id:3, nombre:'...'} ]
     const resultado = UsuarioController.listaUsuarios.map(usuario => usuario.toJSON());
-    res.status(200).json(resultado); // 200 = OK, todo salió bien
+
+    res.status(200).json(resultado); // 200 = OK
   }
 
-  // ── CREAR (login + registro en uno) ─────────────────────────
-  // Responde a: POST /api/usuarios
-  // Si el nombre ya existe → hace LOGIN (devuelve el usuario existente)
-  // Si el nombre es nuevo  → hace REGISTRO (crea el usuario y lo guarda)
+
+  // ── CREAR → POST /api/usuarios ───────────────────────────────
   public crear(req: Request, res: Response): void {
-    // req.body contiene los datos que mandó el frontend en el body del POST
-    // La desestructuración saca propiedades específicas del objeto
     const { nombre, grado, correo, avatar } = req.body;
 
-    // Solo el nombre es obligatorio — sin él no podemos identificar al alumno
+    // ── IF #1: Validación de campo obligatorio ───────────────
+    // Si NO existe el nombre (!nombre es true cuando nombre es '', null, undefined)
+    // entonces respondemos con error y salimos de la función.
+    //
+    // !nombre es true cuando nombre es:
+    //   - undefined (no se mandó en el body)
+    //   - null
+    //   - '' (string vacío)
+    //   - 0, false (aunque no aplican aquí)
     if (!nombre) {
-      res.status(400).json({ error: 'Falta el campo obligatorio: nombre' }); // 400 = Bad Request
-      return; // salimos de la función para no seguir ejecutando el resto
+      res.status(400).json({ error: 'Falta el campo obligatorio: nombre' });
+      return; // "return" sin valor sale de la función — no ejecuta nada más abajo
     }
 
-    // .find() busca el primer elemento del array que cumpla la condición
-    // .trim() elimina espacios al inicio y al final
-    // .toLowerCase() convierte a minúsculas para comparar sin importar mayúsculas
+    // ── .find() sobre el arreglo ─────────────────────────────
+    // .find() busca el PRIMER elemento que cumpla la condición dentro del [ ].
+    // Si no encuentra ninguno, devuelve undefined.
+    //
+    // Ejemplo:
+    //   listaUsuarios = [ Usuario{nombre:'Abril'}, Usuario{nombre:'Melina'} ]
+    //   .find(u => u.getNombre() === 'Abril')
+    //   → devuelve el primer Usuario, el de Abril
+    //
+    // .trim()       → elimina espacios al inicio y al final: '  Abril  ' → 'Abril'
+    // .toLowerCase()→ pone en minúsculas para comparar sin importar mayúsculas: 'ABRIL' → 'abril'
     const usuarioExistente = UsuarioController.listaUsuarios.find(
       u => u.toJSON().nombre.trim().toLowerCase() === nombre.trim().toLowerCase()
     );
 
-    // Si ya existe un usuario con ese nombre → es un LOGIN, no un registro
+    // ── IF #2: ¿Ya existe el usuario? (Login) ────────────────
+    // Si .find() encontró algo, usuarioExistente tiene un valor (no es undefined)
+    // Si .find() no encontró nada, usuarioExistente es undefined (falsy)
     if (usuarioExistente) {
+      // Ya existe → es un LOGIN, devolvemos sus datos originales
       res.status(200).json({
         mensaje: 'Sesión iniciada (Usuario ya existía)',
         usuario: usuarioExistente.toJSON()
@@ -66,40 +96,60 @@ export class UsuarioController {
       return;
     }
 
-    // Si no existe → es un REGISTRO nuevo
-    // El || es "valor por defecto": si grado llega vacío, usa 'Explorador'
+    // Si llegamos aquí es porque el IF de arriba fue falso (no existe el usuario)
+    // → es un REGISTRO nuevo
+
+    // El operador || da un valor por defecto si el de la izquierda es falsy:
+    //   grado || 'Explorador'  → si grado es '' o undefined, usa 'Explorador'
+    //   avatar || '👨‍🚀'       → si no mandaron avatar, usa el astronauta
     const nuevoUsuario = new Usuario(
       nombre,
       grado  || 'Explorador',
       correo || '',
       avatar || '👨‍🚀',
-      UsuarioController.contadorId++ // asigna el ID actual y LUEGO lo incrementa para el siguiente
+      UsuarioController.contadorId++ // asigna el ID actual Y LUEGO incrementa para el siguiente
+                                     // si contadorId es 2, asigna 2 y deja contadorId en 3
     );
 
-    UsuarioController.listaUsuarios.push(nuevoUsuario); // agrega al array en memoria
-    res.status(201).json({                              // 201 = Created (recurso creado)
-      mensaje: 'Creado con éxito',
-      usuario: nuevoUsuario.toJSON()
-    });
+    // .push() agrega un elemento AL FINAL del arreglo
+    // Antes: [ Usuario{id:1}, Usuario{id:2} ]
+    // push(nuevoUsuario con id:3)
+    // Después: [ Usuario{id:1}, Usuario{id:2}, Usuario{id:3} ]
+    UsuarioController.listaUsuarios.push(nuevoUsuario);
+    res.status(201).json({ mensaje: 'Creado con éxito', usuario: nuevoUsuario.toJSON() });
+    // 201 = Created (se creó un recurso nuevo exitosamente)
   }
 
-  // ── ACTUALIZAR ───────────────────────────────────────────────
-  // Responde a: PUT /api/usuarios/:id
-  // Reemplaza los datos de un usuario existente (nombre, grado, avatar)
+
+  // ── ACTUALIZAR → PUT /api/usuarios/:id ──────────────────────
   public actualizar(req: Request, res: Response): void {
-    const { id } = req.params;                         // el id viene en la URL: /api/usuarios/5
-    const { nombre, grado, correo, avatar } = req.body; // los nuevos datos vienen en el body
+    const { id } = req.params;
+    const { nombre, grado, correo, avatar } = req.body;
 
-    // .findIndex() devuelve la POSICIÓN en el array, o -1 si no lo encuentra
+    // .findIndex() es igual que .find() PERO devuelve el NÚMERO DE POSICIÓN
+    // en lugar del elemento en sí.
+    //
+    // Ejemplo:
+    //   listaUsuarios = [ Usuario{id:1}, Usuario{id:2}, Usuario{id:3} ]
+    //   .findIndex(u => u.getId() === 2)
+    //   → devuelve 1 (posición 1 del arreglo, porque los arreglos empiezan en 0)
+    //
+    // Number(id) convierte el string "5" al número 5
+    // (los parámetros de URL siempre llegan como strings)
     const indice = UsuarioController.listaUsuarios.findIndex(u => u.getId() === Number(id));
-    // Number(id) convierte el string "5" al número 5 para poder compararlo
 
+    // ── IF #3: ¿Se encontró el usuario? ──────────────────────
+    // Si findIndex no encontró nada, devuelve -1
+    // -1 significa "no existe en el arreglo"
     if (indice === -1) {
       res.status(404).json({ error: 'Usuario no encontrado en memoria' }); // 404 = Not Found
       return;
     }
 
-    // Reemplazamos el usuario en esa posición con uno nuevo que tiene los datos actualizados
+    // Reemplazamos el elemento en esa posición con un nuevo objeto Usuario actualizado.
+    // Es como cambiar una carta en una posición específica de la baraja.
+    // Antes: listaUsuarios[1] = Usuario{nombre:'Abril viejo'}
+    // Después: listaUsuarios[1] = Usuario{nombre:'Abril nuevo'}
     UsuarioController.listaUsuarios[indice] = new Usuario(nombre, grado, correo, avatar, Number(id));
     res.status(200).json({
       mensaje: 'Actualizado con éxito',
@@ -107,20 +157,27 @@ export class UsuarioController {
     });
   }
 
-  // ── ELIMINAR ─────────────────────────────────────────────────
-  // Responde a: DELETE /api/usuarios/:id
-  // Borra un usuario del array en memoria
+
+  // ── ELIMINAR → DELETE /api/usuarios/:id ─────────────────────
   public eliminar(req: Request, res: Response): void {
     const { id } = req.params;
 
     const indice = UsuarioController.listaUsuarios.findIndex(u => u.getId() === Number(id));
 
+    // ── IF #4: ¿Se encontró el usuario a eliminar? ───────────
     if (indice === -1) {
       res.status(404).json({ error: 'Usuario no encontrado' });
       return;
     }
 
-    // .splice(posición, cuántos eliminar) → quita 1 elemento en esa posición del array
+    // .splice(posición, cuántos_eliminar) modifica el arreglo original.
+    // Elimina 1 elemento en la posición "indice".
+    //
+    // Ejemplo:
+    //   listaUsuarios = [ A, B, C, D ]
+    //   .splice(1, 1)  → elimina el elemento en posición 1 (B)
+    //   listaUsuarios queda: [ A, C, D ]
+    //   Los elementos se "recorren" automáticamente para llenar el hueco.
     UsuarioController.listaUsuarios.splice(indice, 1);
     res.status(200).json({ mensaje: 'Usuario eliminado del arreglo temporal' });
   }
