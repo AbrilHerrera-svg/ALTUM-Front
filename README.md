@@ -77,10 +77,25 @@ Para ejecutar el proyecto en su entorno local, realice los siguientes pasos desd
 
 ## Flujo de Trabajo en Git
 
-Para guardar y subir las modificaciones locales al repositorio remoto, ejecute los siguientes comandos en orden desde la raíz del proyecto:
+Cada integrante del equipo trabaja en su propia rama personal. **Nunca se ejecutan modificaciones directamente en la rama `main`.**
 
 > [!IMPORTANT]
 > Es fundamental descargar los cambios más recientes del repositorio remoto antes de enviar cualquier modificación. Esto previene conflictos de código con las contribuciones de otros miembros del equipo.
+
+### 0. Selección de la rama asignada
+
+Antes de comenzar a programar, cada integrante debe sincronizar su repositorio y moverse a su entorno de trabajo privado.
+
+Sincronice el catálogo de ramas:
+```bash
+git fetch --all
+```
+
+Cambie a su rama correspondiente (reemplace por su nombre):
+- **Abril:** `git switch dev/abril`
+- **Aldimer:** `git switch dev/aldimer`
+- **Mel:** `git switch dev/mel`
+- **Susan:** `git switch dev/susan`
 
 ### 1. Preparar los archivos modificados
 Selecciona todos los cambios nuevos y modificados en el directorio de trabajo para ser confirmados.
@@ -94,14 +109,26 @@ Crea un punto de guardado en el historial local con un mensaje descriptivo de la
 git commit -m "Descripción clara de los cambios realizados"
 ```
 
-### 3. Descargar cambios del repositorio remoto (Pull)
-Descarga y fusiona las modificaciones más recientes del servidor en su copia local.
+### 3. Descargar cambios de tu rama remota (Pull)
+Descarga y fusiona las modificaciones más recientes de tu propia rama en tu copia local (reemplace por su rama).
 ```bash
-git pull origin main
+git pull origin dev/abril
+git pull origin dev/aldimer
+git pull origin dev/mel
+git pull origin dev/susan
 ```
 
-### 4. Subir los cambios al repositorio remoto (Push)
-Envía las confirmaciones locales al servidor remoto para actualizar la rama principal.
+### 4. Subir los cambios a tu rama remota (Push)
+Envía las confirmaciones locales al servidor remoto, a **su propia rama** (reemplace por su rama, nunca `main`).
 ```bash
-git push origin main
+git push origin dev/abril
+git push origin dev/aldimer
+git push origin dev/mel
+git push origin dev/susan
 ```
+
+### 5. Integrar los cambios a `main` (Pull Request)
+Una vez que su rama esté lista y probada, no se sube directamente a `main`. En su lugar:
+1. Vaya al repositorio en GitHub.
+2. Abra un **Pull Request** desde su rama (`dev/su-nombre`) hacia `main`.
+3. Solicite revisión al equipo antes de fusionar (merge), para evitar romper el código de los demás.
