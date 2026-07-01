@@ -1,8 +1,33 @@
+// ============================================================
+// EjercicioController.ts — CONTROLADOR DE EJERCICIOS
+// Contiene el catálogo completo de preguntas de la app (192 en total):
+//   - 6 temas × 8 niveles × 4 preguntas = 192 preguntas
+//
+// Las preguntas se guardan en MEMORIA (no en base de datos).
+// El frontend las descarga al entrar a un nivel con:
+//   GET /api/ejercicios/:tema/:nivel
+//
+// Estructura del catálogo:
+//   catalogoEjercicios = {
+//     "proportionality": [       ← tema
+//       [ Ejercicio, Ejercicio, Ejercicio, Ejercicio ],  ← nivel 0 (4 preguntas)
+//       [ Ejercicio, Ejercicio, Ejercicio, Ejercicio ],  ← nivel 1
+//       ...                                              ← hasta nivel 7
+//     ],
+//     "statistics": [ ... ],
+//     "numeric":    [ ... ],
+//     ...
+//   }
+// ============================================================
+
 import { Request, Response } from 'express';
 import { Ejercicio } from '../models/ejercicio';
-//ejercicios//
+
 export class EjercicioController {
-  
+
+  // Catálogo ESTÁTICO: existe uno solo para toda la app.
+  // "static" = pertenece a la clase, no a cada instancia.
+  // Record<string, any[][]> = objeto cuyas claves son strings y valores son arrays de arrays
   public static catalogoEjercicios: Record<string, any[][]> = {
     proportionality: [
       [
@@ -305,36 +330,42 @@ export class EjercicioController {
       ]
     ]
   };
-public obtenerPorTemaYNivel(req: Request, res: Response): void {
-    const { tema, nivel } = req.params;
-    const nivelIdx = Number(nivel);
+  // ── OBTENER EJERCICIOS POR TEMA Y NIVEL ───────────────────────
+  // Responde a: GET /api/ejercicios/:tema/:nivel
+  // Ejemplo:    GET /api/ejercicios/numeric/2
+  //             → devuelve las 4 preguntas del nivel 2 del tema "numeric"
+  public obtenerPorTemaYNivel(req: Request, res: Response): void {
+    const { tema, nivel } = req.params; // saca los parámetros de la URL
+    const nivelIdx = Number(nivel);     // convierte "2" (string) al número 2
 
-    // catalogo de la clase
     const catalogo = EjercicioController.catalogoEjercicios;
 
-    // 2. Verificamos que tema sea string y una llave válida del catálogo
+    // Validamos que el tema exista en el catálogo
+    // "in" verifica si una clave existe en un objeto
     if (typeof tema !== 'string' || !(tema in catalogo)) {
       res.status(404).json({ error: 'El tema solicitado no existe en el catálogo' });
       return;
     }
 
-    // 3. Ya validamos, le aseguramos a TypeScript el tipo correcto de la llave
+    // "as keyof typeof catalogo" le dice a TypeScript que confiamos en que la clave es válida
     const claveValida = tema as keyof typeof catalogo;
-    const listaTemas = catalogo[claveValida];
+    const listaTemas  = catalogo[claveValida]; // array de 8 niveles del tema
 
-    // validar nivel
+    // Validamos que el nivel exista dentro del tema
     if (!listaTemas || !listaTemas[nivelIdx]) {
       res.status(404).json({ error: 'Ejercicios no encontrados para este nivel' });
       return;
     }
 
-   
+    // Convertimos cada instancia de Ejercicio a objeto plano con .toJSON()
+    // para poder enviarlo como respuesta JSON al frontend
     const ejerciciosJSON = listaTemas[nivelIdx].map((ejercicio: any) => {
       if (typeof ejercicio.toJSON === 'function') {
-        return ejercicio.toJSON();
+        return ejercicio.toJSON(); // usa el método de la clase Ejercicio
       }
-      return ejercicio;
+      return ejercicio; // si ya es plano, lo deja igual
     });
 
-    res.status(200).json(ejerciciosJSON);
-  }}
+    res.status(200).json(ejerciciosJSON); // devuelve las 4 preguntas del nivel
+  }
+}
