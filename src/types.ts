@@ -141,15 +141,32 @@ export interface User {
 
 
 // ── TYPE VIEWNAME ────────────────────────────────────────────
-// Define las 6 pantallas posibles de la app.
-// El | (pipe) significa "O" — ViewName puede ser UNO de estos 6 valores.
+// Define las 7 pantallas posibles de la app.
+// El | (pipe) significa "O" — ViewName puede ser UNA de estos 7 valores.
 //
 // Esto permite que TypeScript te avise si escribes una pantalla inexistente:
 //   setView('menu')   → ❌ Error: 'menu' no existe en ViewName
 //   setView('login')  → ✅ Correcto
 //
 // Se usa en App.tsx: const [view, setView] = useState<ViewName>('login')
-export type ViewName = 'login' | 'dashboard' | 'profile' | 'constellation' | 'level' | 'result';
+export type ViewName = 'login' | 'dashboard' | 'profile' | 'constellation' | 'level' | 'result' | 'shop';
+
+
+// ── INTERFACE SHOPDATA ───────────────────────────────────────
+// Guarda qué accesorios compró el alumno y cuál tiene puesto.
+// Se guarda en localStorage por separado del User, uno por correo.
+//
+// Ejemplo:
+// {
+//   ownedItems: ['lentes_marciano', 'capa_heroe'], // ids de accesorios comprados
+//   equipped:   'lentes_marciano',                  // id del accesorio puesto (o null si ninguno)
+//   spentStars: 10                                  // estrellas ya gastadas en la tienda
+// }
+export interface ShopData {
+  ownedItems: string[];
+  equipped:   string | null;
+  spentStars: number;
+}
 
 
 // ── TYPE STARSIZE ────────────────────────────────────────────

@@ -12,14 +12,12 @@
 
 import { useState }         from 'react';
 import { TOPICS }           from '../data/topics';
-import type { Progress, User } from '../types';
+import { CHARACTERS, SHOP_ITEMS, obtenerRango } from '../data/shop';
+import type { Progress, User, ShopData } from '../types';
 import './ProfileView.css';
 
 // Opciones del selector de grado
 const GRADES = ['4° de Primaria', '5° de Primaria', '6° de Primaria'];
-
-// Emojis disponibles para elegir como avatar
-const AVATARS = ['👨‍🚀','👩‍🚀','👾','🤖','🦸','🧑‍🔬','👽','🌟','🚀','🪐','🌙','☄️','🦊','🐉','🦁'];
 
 // Funciones auxiliares para leer/guardar usuarios en localStorage
 // localStorage guarda datos en el navegador aunque se recargue la página
@@ -55,16 +53,18 @@ interface Props {
   userEmail:       string;
   userAvatar:      string;
   progress:        Progress;
+  shopData:        ShopData;                      // accesorios comprados/puestos
   onBack:          () => void;                    // volver al dashboard
   onUpdate:        (u: ProfileUpdate) => void;    // guardar cambios en App.tsx y backend
   onLogout:        () => void;                    // cerrar sesión / eliminar cuenta
   onResetProgress: () => void;                    // borrar el progreso localmente
+  onGoShop:        () => void;                    // ir a la pantalla de la tienda
 }
 
 // Los dos modos de la pantalla
 type Tab = 'profile' | 'password';
 
-export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar, progress, onBack, onUpdate, onLogout, onResetProgress }: Props) {
+export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar, progress, shopData, onBack, onUpdate, onLogout, onResetProgress, onGoShop }: Props) {
 
   // ── ESTADO DE PESTAÑAS ───────────────────────────────────────
   const [tab, setTab] = useState<Tab>('profile'); // empieza en la pestaña de perfil
@@ -87,8 +87,23 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
   // Cuando es true, muestra el mensaje "¿Estás seguro?" antes de borrar
   const [confirmReset, setConfirmReset] = useState(false);
 
+  // ── ESTADO DEL PORTAL DE CONSULTA ───────────────────────────
+  // Un pequeño panel de ayuda que se muestra/oculta con un botón
+  const [showHelp, setShowHelp] = useState(false);
+
   // Calculamos las estadísticas una sola vez al renderizar
   const stats = obtenerEstadisticas(progress);
+  const rango = obtenerRango(stats.stars); // título según las estrellas acumuladas
+
+  // Accesorio que el alumno tiene puesto actualmente (o undefined si ninguno)
+  const accesorioPuesto = SHOP_ITEMS.find(i => i.id === shopData.equipped);
+
+  // ── FUNCIÓN: ELEGIR PERSONAJE BASE ───────────────────────────
+  // Al elegir astronauta/alíen, se actualiza el avatar de inmediato (igual que Guardar)
+  const alElegirPersonaje = (emoji: string) => {
+    setAvatar(emoji);
+    onUpdate({ name: name.trim() || userName, grade, avatar: emoji });
+  };
 
   // ── FUNCIÓN: GUARDAR PERFIL ──────────────────────────────────
   const alGuardarPerfil = () => {
@@ -151,30 +166,81 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
 
       <div className="pv-content">
 
-        {/* ── Sección hero: avatar grande, nombre y correo ── */}
-        <div className="pv-hero">
-          <div className="pv-avatar-big">{avatar}</div>
-          <div className="pv-hero-name">{userName}</div>
-          <div className="pv-hero-grade">{userGrade} · {userEmail}</div>
+        {/* ── Panel superior: tarjeta de identidad + selección/tienda ── */}
+        <div className="pv-top-grid">
+
+          {/* ── Columna izquierda: avatar, nombre, rango, estrellas ── */}
+          <div className="pv-id-card">
+            <div className="pv-avatar-circle">
+              <span>{avatar}</span>
+              {/* Insignia del accesorio puesto, si tiene uno */}
+              {accesorioPuesto && <span className="pv-avatar-badge">{accesorioPuesto.emoji}</span>}
+            </div>
+            <div className="pv-id-name">( {userName || 'Usuario explorador'} )</div>
+            <div className="pv-id-email">( {userEmail || 'correo'} )</div>
+            <div className="pv-id-rank">{rango} ☀️</div>
+            <div className="pv-id-divider" />
+            <div className="pv-id-stars">
+              <span className="pv-id-stars-num">{String(stats.stars).padStart(2, '0')}</span>
+              <span className="pv-id-stars-label">⭐ Estrellas Obtenidas</span>
+            </div>
+          </div>
+
+          {/* ── Columna derecha: elegir personaje + accesorios comprados ── */}
+          <div className="pv-side-col">
+            <div className="pv-panel">
+              <p className="pv-panel-title">🛸 Selecciona tu personaje</p>
+              <div className="pv-char-row">
+                {CHARACTERS.map(c => (
+                  <button
+                    key={c.id}
+                    className={`pv-char-card ${avatar === c.emoji ? 'selected' : ''}`}
+                    onClick={() => alElegirPersonaje(c.emoji)}
+                  >
+                    <span className="pv-char-emoji">{c.emoji}</span>
+                    <span className="pv-char-label">{c.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="pv-panel">
+              <p className="pv-panel-title">👕 Tus accesorios comprados</p>
+              {shopData.ownedItems.length === 0 ? (
+                <p className="pv-empty-msg">Aún no has comprado accesorios. ¡Visita la tienda!</p>
+              ) : (
+                <div className="pv-items-row">
+                  {shopData.ownedItems.map(id => {
+                    const item = SHOP_ITEMS.find(i => i.id === id);
+                    if (!item) return null;
+                    return (
+                      <div key={id} className="pv-item-card">
+                        <span className="pv-item-emoji">{item.emoji}</span>
+                        <span className="pv-item-name">{item.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* ── Estadísticas del alumno ── */}
-        <div className="pv-stats">
-          <div className="pv-stat">
-            <span className="pv-stat-val">⭐ {stats.stars}</span>
-            <span className="pv-stat-label">Estrellas</span>
-          </div>
-          <div className="pv-stat-divider" />
-          <div className="pv-stat">
-            <span className="pv-stat-val">🏆 {stats.levels}</span>
-            <span className="pv-stat-label">Niveles</span>
-          </div>
-          <div className="pv-stat-divider" />
-          <div className="pv-stat">
-            <span className="pv-stat-val">📚 {TOPICS.length}</span>
-            <span className="pv-stat-label">Temas</span>
-          </div>
+        {/* ── Botones principales ── */}
+        <div className="pv-actions-row">
+          <button className="pv-action-btn" onClick={onGoShop}>🛍️ Visitar la Tienda</button>
+          <button className="pv-action-btn" onClick={() => setShowHelp(h => !h)}>📖 Portal de Consulta</button>
         </div>
+
+        {/* ── Portal de consulta: panel de ayuda rápida ── */}
+        {showHelp && (
+          <div className="pv-card">
+            <p className="pv-section-label">Preguntas frecuentes</p>
+            <p className="pv-help-text">⭐ Ganas estrellas al completar niveles con buenas respuestas.</p>
+            <p className="pv-help-text">🛍️ Usa tus estrellas en la Tienda para comprar accesorios.</p>
+            <p className="pv-help-text">🛸 Elige tu personaje base gratis cuando quieras.</p>
+          </div>
+        )}
 
         {/* ── Pestañas: Editar perfil / Contraseña ── */}
         <div className="pv-tabs">
@@ -187,18 +253,9 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
         </div>
 
         {/* ── PESTAÑA: EDITAR PERFIL ── */}
+        {/* El avatar ahora se elige arriba, en "Selecciona tu personaje" */}
         {tab === 'profile' && (
           <div className="pv-card">
-            <p className="pv-section-label">Elige tu avatar</p>
-            {/* Grid de emojis — el seleccionado tiene clase 'selected' */}
-            <div className="pv-avatar-grid">
-              {AVATARS.map(a => (
-                <button key={a} className={`pv-avatar-opt ${avatar === a ? 'selected' : ''}`} onClick={() => setAvatar(a)}>
-                  {a}
-                </button>
-              ))}
-            </div>
-
             <p className="pv-section-label">Nombre</p>
             <input className="pv-input" value={name} onChange={e => setName(e.target.value)} maxLength={30} placeholder="Tu nombre" />
 

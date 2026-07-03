@@ -20,7 +20,35 @@ import VistaConstelacion from './views/ConstellationView';
 import VistaNivel        from './views/LevelView';
 import VistaResultado    from './views/ResultView';
 import VistaPerfil       from './views/ProfileView';
-import type { Topic, Progress, ViewName } from './types';
+import VistaTienda       from './views/ShopView';
+import type { Topic, Progress, ViewName, ShopData } from './types';
+
+// Guarda la tienda de cada alumno en el navegador, separado por correo
+const CLAVE_TIENDA = 'altum_shop';
+
+function obtenerTiendaDe(email: string): ShopData {
+  try {
+    const todas = JSON.parse(localStorage.getItem(CLAVE_TIENDA) || '{}');
+    return todas[email] ?? { ownedItems: [], equipped: null, spentStars: 0 };
+  } catch {
+    return { ownedItems: [], equipped: null, spentStars: 0 };
+  }
+}
+
+function guardarTiendaDe(email: string, data: ShopData): void {
+  const todas = JSON.parse(localStorage.getItem(CLAVE_TIENDA) || '{}');
+  todas[email] = data;
+  localStorage.setItem(CLAVE_TIENDA, JSON.stringify(todas));
+}
+
+// Suma todas las estrellas ganadas en todos los temas y niveles del progreso
+function calcularEstrellasTotales(progress: Progress): number {
+  let total = 0;
+  Object.values(progress).forEach(topicProg => {
+    Object.values(topicProg).forEach(level => { total += level.stars ?? 0; });
+  });
+  return total;
+}
 
 // URLs base del backend — si cambia el puerto, solo se cambia aquí
 const API_URL_USUARIOS = 'http://localhost:3000/api/usuarios';
@@ -51,6 +79,10 @@ export default function Aplicacion() {
   // Objeto que guarda cuántos niveles completó el alumno y con cuántas estrellas.
   // Empieza vacío {} y se llena desde el backend al iniciar sesión.
   const [progress, setProgress] = useState<Progress>({});
+
+  // ── ESTADO DE LA TIENDA ──────────────────────────────────────
+  // Qué accesorios compró el alumno y cuál tiene puesto (se guarda en localStorage)
+  const [shopData, setShopData] = useState<ShopData>({ ownedItems: [], equipped: null, spentStars: 0 });
 
   // ── SINCRONIZACIÓN AUTOMÁTICA DEL PROGRESO ───────────────────
   // useEffect se ejecuta automáticamente cada vez que cambia userName o view.
@@ -101,6 +133,9 @@ export default function Aplicacion() {
         const resProgreso  = await fetch(`${API_URL_PROGRESO}/${datos.usuario.nombre}`);
         const dataProgreso = await resProgreso.json();
         setProgress(dataProgreso);
+
+        // Cargamos los accesorios que este alumno ya había comprado antes
+        setShopData(obtenerTiendaDe(datos.usuario.correo));
 
         setView('dashboard'); // cambiamos la pantalla al mapa espacial
       }
@@ -225,11 +260,34 @@ export default function Aplicacion() {
     setSelectedTopic(null);
     setSelectedLevel(null);
     setProgress({}); // limpiamos el progreso para que no se vea en pantalla al salir
+    setShopData({ ownedItems: [], equipped: null, spentStars: 0 }); // limpiamos la tienda en pantalla
     setView('login');
   };
 
   const alReiniciarProgreso = () => {
     setProgress({}); // borra el progreso visualmente (el backend no se toca)
+  };
+
+  // ── COMPRAR UN ACCESORIO DE LA TIENDA ────────────────────────
+  const alComprarAccesorio = (itemId: string, price: number) => {
+    setShopData(prev => {
+      const actualizado: ShopData = {
+        ...prev,
+        ownedItems: [...prev.ownedItems, itemId],
+        spentStars: prev.spentStars + price,
+      };
+      guardarTiendaDe(userEmail, actualizado); // persiste en localStorage
+      return actualizado;
+    });
+  };
+
+  // ── PONERSE / QUITARSE UN ACCESORIO ──────────────────────────
+  const alEquiparAccesorio = (itemId: string | null) => {
+    setShopData(prev => {
+      const actualizado: ShopData = { ...prev, equipped: itemId };
+      guardarTiendaDe(userEmail, actualizado);
+      return actualizado;
+    });
   };
 
   // ── RENDERIZADO ──────────────────────────────────────────────
@@ -256,7 +314,7 @@ export default function Aplicacion() {
         />
       )}
 
-      {/* Perfil del alumno — editar nombre, grado, avatar */}
+      {/* Perfil del alumno — editar nombre, grado, avatar, ver tienda */}
       {view === 'profile' && (
         <VistaPerfil
           userName={userName}
@@ -264,10 +322,24 @@ export default function Aplicacion() {
           userEmail={userEmail}
           userAvatar={userAvatar}
           progress={progress}
+          shopData={shopData}
           onBack={() => setView('dashboard')}
           onUpdate={alActualizarPerfil}
           onLogout={alEliminarCuenta}
           onResetProgress={alReiniciarProgreso}
+          onGoShop={() => setView('shop')}
+        />
+      )}
+
+      {/* Tienda — comprar y ponerse accesorios con las estrellas ganadas */}
+      {view === 'shop' && (
+        <VistaTienda
+          avatar={userAvatar}
+          totalStars={calcularEstrellasTotales(progress)}
+          shopData={shopData}
+          onBuy={alComprarAccesorio}
+          onEquip={alEquiparAccesorio}
+          onBack={() => setView('profile')}
         />
       )}
 
