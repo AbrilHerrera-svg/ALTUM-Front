@@ -66,7 +66,7 @@ export class ProgresoController {
 
   // ── GUARDAR / VERIFICAR → POST /api/progreso/guardar y /verificar ─
   public guardarProgreso(req: Request, res: Response): void {
-    const { alumnoNombre, topicId, levelIndex, exerciseIndex, respuestaUsuario, stars } = req.body;
+    const { alumnoNombre, userGrade, topicId, levelIndex, exerciseIndex, respuestaUsuario, stars } = req.body;
 
     // String() convierte el número a texto para usarlo como clave del objeto.
     // Los objetos de JavaScript usan strings como claves, aunque escribas un número.
@@ -141,7 +141,10 @@ export class ProgresoController {
     // Esto pasa cuando el alumno hace clic en una opción de respuesta.
 
     const exerciseIdx = Number(exerciseIndex); // índice de la pregunta actual (0-3)
-    const catalogo: any = EjercicioController.catalogoEjercicios;
+    // Accede al catálogo de ejercicios por grado del usuario
+    const catalogoPorGrado: any = EjercicioController.catalogoEjerciciosPorGrado;
+    const normalizedGrade = this.normalizeGrade(userGrade);
+    const catalogo: any = catalogoPorGrado[normalizedGrade];
     let esCorrecto = false; // empieza como false por seguridad
 
     // ── IF #6: Verificar que exista el ejercicio en el catálogo ─
@@ -167,12 +170,21 @@ export class ProgresoController {
 
         // Comparamos la respuesta del alumno con la correcta del catálogo
         // === verifica igualdad estricta (mismo valor Y mismo tipo)
-        esCorrecto = limpiar(ejercicioReal.correct) === limpiar(respuestaUsuario);
+        esCorrecto = limpiar(ejercicioReal.getCorrect()) === limpiar(respuestaUsuario);
       }
     }
 
     // Devolvemos si la respuesta fue correcta o no
     // El frontend usa esto para mostrar ✓ o ✗ y restar vida si fue incorrecta
     res.status(200).json({ esCorrecto });
+  }
+
+  private normalizeGrade(grade: string): string {
+    if (!grade) return '6°';
+    const normalized = grade.toLowerCase().trim();
+    if (normalized.includes('4')) return '4°';
+    if (normalized.includes('5')) return '5°';
+    if (normalized.includes('6')) return '6°';
+    return '6°';
   }
 }

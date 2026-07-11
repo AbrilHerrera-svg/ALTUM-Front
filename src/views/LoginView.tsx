@@ -13,7 +13,7 @@ import SpacePlanets  from '../components/SpacePlanets';  // planetas decorativos
 import './LoginView.css';
 
 // Opciones del selector de grado escolar
-const GRADES = ['4° de Primaria', '5° de Primaria', '6° de Primaria'];
+const GRADES = ['4°', '5°', '6°'];
 
 // Tipo que define los 3 modos posibles de esta pantalla
 type Mode = 'login' | 'register' | 'forgot';
