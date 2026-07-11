@@ -5,7 +5,7 @@
 
 import React from 'react';
 import MostrarEstrellas from '../components/StarDisplay';
-import { TOPICS }       from '../data/topics';
+import { getTopicsByGrade, TOPICS }       from '../data/topics';
 import type { Progress } from '../types';
 import './DashboardView.css';
 
@@ -151,10 +151,10 @@ export default function VistaPrincipal({ userName, userGrade, userAvatar, progre
         </div>
 
         {/* ── Tarjetas de temas ── */}
-        {/* TOPICS es un arreglo con los 6 temas definido en data/topics.ts */}
+        {/* getTopicsByGrade obtiene los temas específicos del grado del usuario */}
         {/* .map() genera una tarjeta <button> por cada tema */}
         <div className="dash-topics">
-          {TOPICS.map((topic) => {
+          {getTopicsByGrade(userGrade).map((topic) => {
             // Para cada tema calculamos sus estadísticas
             const { earned, total } = obtenerEstrellas(topic.id, topic.levelCount);
             const completed = obtenerProgresoTema(topic.id);

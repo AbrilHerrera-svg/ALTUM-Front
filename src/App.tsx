@@ -359,6 +359,7 @@ export default function Aplicacion() {
         <VistaNivel
           topic={selectedTopic}
           levelIdx={selectedLevel}
+          userGrade={userGrade}
           onComplete={alCompletarNivel}
           onBack={() => setView('constellation')}
         />
