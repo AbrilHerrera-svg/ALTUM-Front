@@ -34,11 +34,12 @@ interface EncouragementState { message: string; type: EncouragementType; }
 interface Props {
   topic:      Topic;
   levelIdx:   number;
+  userGrade:  string;
   onComplete: (stars: number) => void;
   onBack:     () => void;
 }
 
-export default function VistaNivel({ topic, levelIdx, onComplete, onBack }: Props) {
+export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onBack }: Props) {
 
   // exercises es un ARREGLO de objetos Exercise.
   // Empieza vacío [] y se llena con las 4 preguntas del backend.
@@ -61,7 +62,8 @@ export default function VistaNivel({ topic, levelIdx, onComplete, onBack }: Prop
   useEffect(() => {
     setLoading(true);
     setErrorMsg('');
-    fetch(`http://localhost:3000/api/ejercicios/${topic.id}/${levelIdx}`)
+    // Incluye el grado del usuario en la URL para obtener ejercicios específicos
+    fetch(`http://localhost:3000/api/ejercicios/${topic.id}/${levelIdx}?grade=${encodeURIComponent(userGrade)}`)
       .then((res) => {
         // ── IF #1: ¿Respondió bien el servidor? ──────────────
         // res.ok es true si el código HTTP está entre 200-299
@@ -69,17 +71,18 @@ export default function VistaNivel({ topic, levelIdx, onComplete, onBack }: Prop
         if (!res.ok) throw new Error('No se pudo obtener la misión estelar.');
         return res.json();
       })
-      .then((data: Exercise[]) => {
-        // data es el ARREGLO de 4 preguntas que devolvió el backend
-        // Lo guardamos en el estado para renderizar las preguntas
-        setExercises(data);
+      .then((data: any) => {
+        // data es un objeto con: { grade, tema, nivel, ejercicios: [...] }
+        // Extraemos el arreglo de ejercicios
+        const ejercicios = data.ejercicios || data;
+        setExercises(ejercicios);
         setLoading(false);
       })
       .catch((err) => {
         setErrorMsg(err.message);
         setLoading(false);
       });
-  }, [topic.id, levelIdx]);
+  }, [topic.id, levelIdx, userGrade]);
 
   // Acceso directo a la pregunta actual del arreglo usando el índice
   // exercises[0] = primera pregunta, exercises[1] = segunda, etc.
@@ -105,6 +108,7 @@ export default function VistaNivel({ topic, levelIdx, onComplete, onBack }: Prop
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           alumnoNombre:     usuarioActual,
+          userGrade:        userGrade,
           topicId:          topic.id,
           levelIndex:       levelIdx,
           exerciseIndex:    currentQ,
