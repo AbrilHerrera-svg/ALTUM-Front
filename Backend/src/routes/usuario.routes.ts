@@ -19,6 +19,7 @@ const controller = new UsuarioController(); // instanciamos el controller para u
 // Cada línea conecta: MÉTODO + URL → función del controller
 // (req, res) => es necesario para que TypeScript pase los tipos correctamente
 router.get('/',      (req, res) => controller.listar(req, res));    // GET    /api/usuarios
+router.post('/login',(req, res) => controller.login(req, res));     // POST   /api/usuarios/login
 router.post('/',     (req, res) => controller.crear(req, res));     // POST   /api/usuarios
 router.put('/:id',   (req, res) => controller.actualizar(req, res));// PUT    /api/usuarios/5
 router.delete('/:id',(req, res) => controller.eliminar(req, res));  // DELETE /api/usuarios/5

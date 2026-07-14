@@ -11,13 +11,12 @@
 // ============================================================
 
 import { useState }         from 'react';
-import { TOPICS }           from '../data/topics';
 import { CHARACTERS, SHOP_ITEMS, obtenerRango } from '../data/shop';
 import type { Progress, User, ShopData } from '../types';
 import './ProfileView.css';
 
 // Opciones del selector de grado
-const GRADES = ['4° de Primaria', '5° de Primaria', '6° de Primaria'];
+const GRADES = ['4°', '5°', '6°'];
 
 // Funciones auxiliares para leer/guardar usuarios en localStorage
 // localStorage guarda datos en el navegador aunque se recargue la página
@@ -31,9 +30,8 @@ function guardarUsuarios(users: User[]): void {
 // Calcula las estadísticas totales del alumno recorriendo todo su progreso
 function obtenerEstadisticas(progress: Progress) {
   let stars = 0, levels = 0;
-  TOPICS.forEach(t => {
-    if (!progress[t.id]) return; // si no hay progreso en ese tema, lo salta
-    Object.values(progress[t.id]).forEach(l => {
+  Object.keys(progress).forEach(topicId => {
+    Object.values(progress[topicId]).forEach(l => {
       if (l.completed) {
         levels++;              // cuenta el nivel como completado
         stars += l.stars ?? 0; // suma las estrellas (si es undefined, suma 0)
@@ -71,8 +69,8 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
 
   // ── ESTADOS DEL FORMULARIO DE PERFIL ────────────────────────
   // Se inicializan con los valores actuales del usuario
-  const [name,       setName]       = useState(userName);
-  const [grade,      setGrade]      = useState(userGrade);
+  const [name,       setName]       = useState(userName || 'Explorador');
+  const [grade,      setGrade]      = useState(userGrade || '6°');
   const [avatar,     setAvatar]     = useState(userAvatar || '👨‍🚀');
   const [profileMsg, setProfileMsg] = useState(''); // mensaje de éxito/error al guardar
 
@@ -92,11 +90,11 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
   const [showHelp, setShowHelp] = useState(false);
 
   // Calculamos las estadísticas una sola vez al renderizar
-  const stats = obtenerEstadisticas(progress);
+  const stats = obtenerEstadisticas(progress || {});
   const rango = obtenerRango(stats.stars); // título según las estrellas acumuladas
 
   // Accesorio que el alumno tiene puesto actualmente (o undefined si ninguno)
-  const accesorioPuesto = SHOP_ITEMS.find(i => i.id === shopData.equipped);
+  const accesorioPuesto = SHOP_ITEMS && shopData?.equipped ? SHOP_ITEMS.find(i => i.id === shopData.equipped) : undefined;
 
   // ── FUNCIÓN: ELEGIR PERSONAJE BASE ───────────────────────────
   // Al elegir astronauta/alíen, se actualiza el avatar de inmediato (igual que Guardar)

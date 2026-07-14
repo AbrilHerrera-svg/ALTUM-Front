@@ -137,6 +137,7 @@ export interface User {
   password: string;
   avatar?:  string; // el ? hace que este campo sea OPCIONAL
                     // puede existir o no, TypeScript no exige que esté
+  role?:    'student' | 'teacher' | 'admin';
 }
 
 
@@ -149,7 +150,9 @@ export interface User {
 //   setView('login')  → ✅ Correcto
 //
 // Se usa en App.tsx: const [view, setView] = useState<ViewName>('login')
-export type ViewName = 'login' | 'dashboard' | 'profile' | 'constellation' | 'level' | 'result' | 'shop';
+export type ViewName = 'login' | 'dashboard' | 'profile' | 'constellation' | 'level' | 'result' | 'shop' | 'admin' | 'teacher';
+
+export type UserRole = 'student' | 'teacher' | 'admin';
 
 
 // ── INTERFACE SHOPDATA ───────────────────────────────────────

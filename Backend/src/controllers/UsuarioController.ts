@@ -12,6 +12,36 @@ import { Usuario } from '../models/Usuario';
 
 export class UsuarioController {
 
+  // Contraseña secreta para ser admin — solo desarrolladores
+  private static ADMIN_SECRET = 'dev_admin_2024';
+
+  // ── LOGIN → POST /api/usuarios/login ─────────────────────────
+  // Verifica correo + contraseña en el servidor. Nunca confiar en el
+  // frontend para esta validación — por eso existe este endpoint aparte.
+  public login(req: Request, res: Response): void {
+    const { correo, contraseña } = req.body;
+
+    if (!correo || !contraseña) {
+      res.status(400).json({ error: 'Correo y contraseña son obligatorios' });
+      return;
+    }
+
+    const usuario = UsuarioController.listaUsuarios.find(
+      u => u.getCorreo().trim().toLowerCase() === correo.trim().toLowerCase()
+    );
+
+    // Comparamos también si no existe el usuario o si la contraseña no coincide.
+    // El mensaje de error es el mismo en ambos casos para no revelar
+    // si el correo existe o no (buena práctica de seguridad).
+    if (!usuario || usuario.getContraseña() !== contraseña) {
+      res.status(401).json({ error: 'Correo o contraseña incorrectos' });
+      return;
+    }
+
+    res.status(200).json({ mensaje: 'Sesión iniciada', usuario: usuario.toJSON() });
+  }
+
+
   // ── ¿QUÉ ES ESTE ARREGLO? ───────────────────────────────────
   // Un ARREGLO (array) es una lista ordenada de elementos.
   // Aquí guardamos objetos de tipo Usuario.
@@ -53,7 +83,7 @@ export class UsuarioController {
 
   // ── CREAR → POST /api/usuarios ───────────────────────────────
   public crear(req: Request, res: Response): void {
-    const { nombre, grado, correo, avatar } = req.body;
+    const { nombre, grado, correo, avatar, role, adminSecret, contraseña } = req.body;
 
     // ── IF #1: Validación de campo obligatorio ───────────────
     // Si NO existe el nombre (!nombre es true cuando nombre es '', null, undefined)
@@ -99,6 +129,15 @@ export class UsuarioController {
     // Si llegamos aquí es porque el IF de arriba fue falso (no existe el usuario)
     // → es un REGISTRO nuevo
 
+    // Validar si intenta ser admin
+    let finalRole: 'student' | 'teacher' | 'admin' = role || 'student';
+    if (role === 'admin') {
+      if (adminSecret !== UsuarioController.ADMIN_SECRET) {
+        res.status(403).json({ error: 'No autorizado para crear admin sin contraseña correcta' });
+        return;
+      }
+    }
+
     // El operador || da un valor por defecto si el de la izquierda es falsy:
     //   grado || 'Explorador'  → si grado es '' o undefined, usa 'Explorador'
     //   avatar || '👨‍🚀'       → si no mandaron avatar, usa el astronauta
@@ -107,8 +146,9 @@ export class UsuarioController {
       grado  || 'Explorador',
       correo || '',
       avatar || '👨‍🚀',
-      UsuarioController.contadorId++ // asigna el ID actual Y LUEGO incrementa para el siguiente
-                                     // si contadorId es 2, asigna 2 y deja contadorId en 3
+      UsuarioController.contadorId++, // asigna el ID actual Y LUEGO incrementa para el siguiente
+      finalRole,
+      contraseña || ''
     );
 
     // .push() agrega un elemento AL FINAL del arreglo
@@ -124,7 +164,7 @@ export class UsuarioController {
   // ── ACTUALIZAR → PUT /api/usuarios/:id ──────────────────────
   public actualizar(req: Request, res: Response): void {
     const { id } = req.params;
-    const { nombre, grado, correo, avatar } = req.body;
+    const { nombre, grado, correo, avatar, role } = req.body;
 
     // .findIndex() es igual que .find() PERO devuelve el NÚMERO DE POSICIÓN
     // en lugar del elemento en sí.
@@ -150,7 +190,7 @@ export class UsuarioController {
     // Es como cambiar una carta en una posición específica de la baraja.
     // Antes: listaUsuarios[1] = Usuario{nombre:'Abril viejo'}
     // Después: listaUsuarios[1] = Usuario{nombre:'Abril nuevo'}
-    UsuarioController.listaUsuarios[indice] = new Usuario(nombre, grado, correo, avatar, Number(id));
+    UsuarioController.listaUsuarios[indice] = new Usuario(nombre, grado, correo, avatar, Number(id), role || 'student');
     res.status(200).json({
       mensaje: 'Actualizado con éxito',
       usuario: UsuarioController.listaUsuarios[indice].toJSON()

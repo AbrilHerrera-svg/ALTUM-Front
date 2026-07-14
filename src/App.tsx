@@ -21,6 +21,8 @@ import VistaNivel        from './views/LevelView';
 import VistaResultado    from './views/ResultView';
 import VistaPerfil       from './views/ProfileView';
 import VistaTienda       from './views/ShopView';
+import AdminView         from './views/AdminView';
+import TeacherView       from './views/TeacherView';
 import type { Topic, Progress, ViewName, ShopData } from './types';
 
 // Guarda la tienda de cada alumno en el navegador, separado por correo
@@ -69,6 +71,7 @@ export default function Aplicacion() {
   const [userGrade, setUserGrade] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userAvatar,setUserAvatar]= useState('👨‍🚀');
+  const [userRole,  setUserRole]  = useState<'student' | 'teacher' | 'admin'>('student');
 
   // ── ESTADO DEL JUEGO ─────────────────────────────────────────
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null); // tema seleccionado
@@ -105,7 +108,7 @@ export default function Aplicacion() {
   // ── INICIAR SESIÓN / REGISTRARSE ─────────────────────────────
   // REQUISITO 7 y 9: Operación CREATE (POST) al iniciar sesión / registrarse
   // El backend distingue automáticamente si es login o registro según si el nombre ya existe.
-  const alIniciarSesion = async (name: string, grade: string, email: string, avatar: string) => {
+  const alIniciarSesion = async (name: string, grade: string, email: string, avatar: string, role: 'student' | 'teacher' | 'admin' = 'student') => {
     try {
       // await pausa esta función hasta que el backend responda
       const respuesta = await fetch(API_URL_USUARIOS, {
@@ -115,7 +118,8 @@ export default function Aplicacion() {
           nombre: name,
           grado: grade,
           correo: email,
-          avatar: avatar || '👨‍🚀'
+          avatar: avatar || '👨‍🚀',
+          role: role
         }),
       });
 
@@ -128,16 +132,26 @@ export default function Aplicacion() {
         setUserGrade(datos.usuario.grado);
         setUserEmail(datos.usuario.correo);
         setUserAvatar(datos.usuario.avatar);
+        setUserRole(role);
 
         // Descargamos el progreso inmediatamente para que el Dashboard no aparezca vacío
-        const resProgreso  = await fetch(`${API_URL_PROGRESO}/${datos.usuario.nombre}`);
-        const dataProgreso = await resProgreso.json();
-        setProgress(dataProgreso);
+        if (role === 'student') {
+          const resProgreso  = await fetch(`${API_URL_PROGRESO}/${datos.usuario.nombre}`);
+          const dataProgreso = await resProgreso.json();
+          setProgress(dataProgreso);
 
-        // Cargamos los accesorios que este alumno ya había comprado antes
-        setShopData(obtenerTiendaDe(datos.usuario.correo));
+          // Cargamos los accesorios que este alumno ya había comprado antes
+          setShopData(obtenerTiendaDe(datos.usuario.correo));
+        }
 
-        setView('dashboard'); // cambiamos la pantalla al mapa espacial
+        // Redirigir según el rol
+        if (role === 'admin') {
+          setView('admin');
+        } else if (role === 'teacher') {
+          setView('teacher');
+        } else {
+          setView('dashboard');
+        }
       }
     } catch (error) {
       console.error('Error de red al intentar registrar usuario:', error);
@@ -359,6 +373,7 @@ export default function Aplicacion() {
         <VistaNivel
           topic={selectedTopic}
           levelIdx={selectedLevel}
+          userGrade={userGrade}
           onComplete={alCompletarNivel}
           onBack={() => setView('constellation')}
         />
@@ -374,6 +389,16 @@ export default function Aplicacion() {
           onRetry={() => setView('level')}
           onBack={() => setView('constellation')}
         />
+      )}
+
+      {/* Panel del Administrador — CRUD de ejercicios */}
+      {view === 'admin' && (
+        <AdminView onBack={() => setView('dashboard')} />
+      )}
+
+      {/* Panel del Maestro — Gestión de grupos */}
+      {view === 'teacher' && (
+        <TeacherView userEmail={userEmail} onBack={() => setView('dashboard')} />
       )}
     </>
   );
