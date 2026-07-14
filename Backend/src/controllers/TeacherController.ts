@@ -5,6 +5,29 @@ import { Request, Response } from 'express';
 let grupos: any[] = [];
 let contadorId = 1;
 
+// Genera un código corto y fácil de compartir, ej: "X7K2QT"
+function generarCodigoUnico(): string {
+  const CARACTERES = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin 0/O ni 1/I para evitar confusión
+  let codigo = '';
+  do {
+    codigo = Array.from({ length: 6 }, () => CARACTERES[Math.floor(Math.random() * CARACTERES.length)]).join('');
+  } while (grupos.some(g => g.codigo === codigo));
+  return codigo;
+}
+
+// Usado por UsuarioController al registrar un estudiante con código de clase.
+// Devuelve el grupo al que se unió, o null si el código no existe.
+export function agregarEstudiantePorCodigo(codigo: string, estudiante: { id_usuario: number; nombre: string; correo: string }) {
+  if (!codigo) return null;
+  const grupo = grupos.find(g => g.codigo === codigo.trim().toUpperCase());
+  if (!grupo) return null;
+
+  if (!grupo.estudiantes.some((e: any) => e.id_usuario === estudiante.id_usuario)) {
+    grupo.estudiantes.push(estudiante);
+  }
+  return grupo;
+}
+
 export class TeacherController {
   // POST /api/teacher/grupos - Crear nuevo grupo
   static createGrupo(req: Request, res: Response) {

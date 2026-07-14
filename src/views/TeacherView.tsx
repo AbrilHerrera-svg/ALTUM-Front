@@ -28,6 +28,13 @@ export default function TeacherView({ userEmail, onBack }: Props) {
   const [selectedGrupo, setSelectedGrupo] = useState<any | null>(null);
   const [manageTab, setManageTab] = useState<ManageTab>('estudiantes');
   const [allStudents, setAllStudents] = useState<any[]>([]);
+  const [codigoCopiado, setCodigoCopiado] = useState(false);
+
+  const handleCopiarCodigo = (codigo: string) => {
+    navigator.clipboard?.writeText(codigo).catch(() => {});
+    setCodigoCopiado(true);
+    setTimeout(() => setCodigoCopiado(false), 1500);
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -212,6 +219,9 @@ export default function TeacherView({ userEmail, onBack }: Props) {
                       <span>📚 {grupo.temas?.length || 0} temas</span>
                       <span>📝 {grupo.ejercicios?.length || 0} ejercicios</span>
                     </div>
+                    <button className="tv-codigo-chip" onClick={() => handleCopiarCodigo(grupo.codigo)} title="Copiar código">
+                      🔑 {grupo.codigo} <span className="tv-codigo-copy">copiar</span>
+                    </button>
                     <div className="tv-grupo-actions">
                       <button className="tv-btn-edit" onClick={() => handleManageGrupo(grupo.id_grupo)}>⚙️ Gestionar</button>
                       <button className="tv-btn-delete" onClick={() => handleDeleteGrupo(grupo.id_grupo)}>❌</button>
@@ -273,6 +283,11 @@ export default function TeacherView({ userEmail, onBack }: Props) {
               <div className="tv-avatar-circle"><span>📚</span></div>
               <div className="tv-id-email">{selectedGrupo.nombre_grupo}</div>
               <div className="tv-id-rank">{selectedGrupo.grado} de Primaria</div>
+              <button className="tv-codigo-big" onClick={() => handleCopiarCodigo(selectedGrupo.codigo)}>
+                <span className="tv-codigo-label">Código de la clase</span>
+                <span className="tv-codigo-value">{selectedGrupo.codigo} {codigoCopiado ? '✅' : '📋'}</span>
+              </button>
+              <p className="tv-codigo-hint">Compártelo con tus alumnos para que se unan al registrarse</p>
             </div>
 
             <div className="tv-tabs">

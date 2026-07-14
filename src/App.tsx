@@ -322,6 +322,20 @@ export default function Aplicacion() {
     });
   };
 
+  // ── RESTRICCIONES POR GRUPO DE CLASE ─────────────────────────
+  // Si el alumno pertenece a un grupo, solo puede ver los temas que su
+  // maestro asignó. Si no pertenece a ninguno (misGrupo === null), ve todo.
+  const temasPermitidos: string[] | null = misGrupo
+    ? misGrupo.temas.map((t: any) => t.id_tema)
+    : null;
+
+  // Dentro de un tema, solo puede jugar los niveles que el maestro asignó como ejercicio.
+  const nivelesPermitidos: number[] | null = (misGrupo && selectedTopic)
+    ? misGrupo.ejercicios
+        .filter((e: any) => e.id_tema === selectedTopic.id)
+        .map((e: any) => Number(e.id_nivel))
+    : null;
+
   // ── RENDERIZADO ──────────────────────────────────────────────
   // El return decide QUÉ pantalla mostrar según el estado "view".
   // Solo se muestra UNA pantalla a la vez.
@@ -340,6 +354,7 @@ export default function Aplicacion() {
           userGrade={userGrade}
           userAvatar={userAvatar}
           progress={progress}
+          temasPermitidos={temasPermitidos}
           onSelectTopic={alSeleccionarTema}
           onProfile={() => setView('profile')}
           onLogout={alCerrarSesion}
@@ -381,6 +396,7 @@ export default function Aplicacion() {
         <VistaConstelacion
           topic={selectedTopic}
           progress={progress}
+          nivelesPermitidos={nivelesPermitidos}
           onSelectLevel={alSeleccionarNivel}
           onBack={() => setView('dashboard')}
         />

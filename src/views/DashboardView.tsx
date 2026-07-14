@@ -58,12 +58,15 @@ interface Props {
   userGrade:     string;
   userAvatar:    string;
   progress:      Progress;
+  // Si el alumno pertenece a un grupo de clase, aquí llegan solo los ids de los
+  // temas que su maestro asignó. null = no pertenece a ningún grupo → ve todos.
+  temasPermitidos?: string[] | null;
   onSelectTopic: (topic: (typeof TOPICS)[number]) => void;
   onProfile:     () => void;
   onLogout:      () => void;
 }
 
-export default function VistaPrincipal({ userName, userGrade, userAvatar, progress, onSelectTopic, onProfile, onLogout }: Props) {
+export default function VistaPrincipal({ userName, userGrade, userAvatar, progress, temasPermitidos = null, onSelectTopic, onProfile, onLogout }: Props) {
 
   // ── FUNCIÓN: CALCULAR ESTRELLAS DE UN TEMA ───────────────────
   const obtenerEstrellas = (topicId: string, levelCount: number) => {
@@ -153,8 +156,17 @@ export default function VistaPrincipal({ userName, userGrade, userAvatar, progre
         {/* ── Tarjetas de temas ── */}
         {/* getTopicsByGrade obtiene los temas específicos del grado del usuario */}
         {/* .map() genera una tarjeta <button> por cada tema */}
+        {temasPermitidos !== null && temasPermitidos.length === 0 && (
+          <div className="dash-empty-class">
+            <span style={{ fontSize: '2.4rem' }}>🛰️</span>
+            <p>Tu maestro todavía no asignó temas a tu clase. ¡Vuelve pronto!</p>
+          </div>
+        )}
+
         <div className="dash-topics">
-          {getTopicsByGrade(userGrade).map((topic) => {
+          {getTopicsByGrade(userGrade)
+            .filter(topic => temasPermitidos === null || temasPermitidos.includes(topic.id))
+            .map((topic) => {
             // Para cada tema calculamos sus estadísticas
             const { earned, total } = obtenerEstrellas(topic.id, topic.levelCount);
             const completed = obtenerProgresoTema(topic.id);

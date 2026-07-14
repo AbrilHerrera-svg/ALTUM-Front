@@ -145,19 +145,27 @@ export default function VistaLogin({ onLogin }: Props) {
           correo:     regEmail.toLowerCase(),
           contraseña: regPassword,
           avatar:     '👨‍🚀',
-          role:       regRole
+          role:       regRole,
+          classCode:  regRole === 'student' ? regClassCode.trim() : ''
         })
       });
 
       const datos = await respuestaPost.json();
 
       if (respuestaPost.ok) {
-        setSuccess('¡Registro exitoso! Redirigiendo...');
+        // Avisamos si el código de clase sí unió al alumno a un grupo, o si el código no existía
+        if (datos.grupoUnido) {
+          setSuccess(`¡Registro exitoso! Te uniste al grupo "${datos.grupoUnido}" 🎉 Redirigiendo...`);
+        } else if (datos.codigoInvalido) {
+          setSuccess('¡Registro exitoso! El código de clase no era válido, pero tu cuenta ya está creada. Redirigiendo...');
+        } else {
+          setSuccess('¡Registro exitoso! Redirigiendo...');
+        }
         // Después de 1.4 segundos, llevamos al usuario al login con su correo ya puesto
         setTimeout(() => {
           setLoginEmail(regEmail.toLowerCase());
           cambiarModo('login');
-        }, 1400);
+        }, 1800);
       } else {
         setError(datos.error || 'Error al registrar el usuario.');
       }

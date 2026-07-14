@@ -15,6 +15,9 @@ interface LevelStatus { state: NodeState; stars: number; }
 interface Props {
   topic:         Topic;
   progress:      Progress;
+  // Si el alumno pertenece a un grupo de clase, aquí llegan solo los índices de
+  // nivel que su maestro asignó dentro de este tema. null = sin restricción.
+  nivelesPermitidos?: number[] | null;
   onSelectLevel: (idx: number) => void;
   onBack:        () => void;
 }
@@ -35,7 +38,7 @@ const STAR_POS = [
   [59, 56], [71, 28], [83, 62], [93, 38],
 ];
 
-export default function VistaConstelacion({ topic, progress, onSelectLevel, onBack }: Props) {
+export default function VistaConstelacion({ topic, progress, nivelesPermitidos = null, onSelectLevel, onBack }: Props) {
 
   // ?? es el operador "nullish coalescing":
   // LEVEL_NAMES[topic.id] ?? []
@@ -43,55 +46,54 @@ export default function VistaConstelacion({ topic, progress, onSelectLevel, onBa
   // Si existe → usa el valor real
   const levelNames  = LEVEL_NAMES[topic.id] ?? [];
   const topicProg   = progress[topic.id] ?? {}; // progreso del alumno en este tema (o {} si no hay)
-  const totalLevels = levelNames.length || 8;   // siempre 8 (|| 8 por si el arreglo estuviera vacío)
+  const totalNiveles = levelNames.length || 8;  // siempre 8 (|| 8 por si el arreglo estuviera vacío)
+
+  // ── ÍNDICES VISIBLES ─────────────────────────────────────────
+  // Si el alumno pertenece a un grupo, solo se muestran los niveles que
+  // su maestro asignó — el resto ni siquiera aparece en el mapa.
+  // Si no pertenece a ningún grupo (null), se muestran los 8 de siempre.
+  const indicesVisibles = nivelesPermitidos === null
+    ? Array.from({ length: totalNiveles }, (_, i) => i)
+    : [...nivelesPermitidos].sort((a, b) => a - b);
 
   // ── FUNCIÓN: DETERMINAR EL ESTADO DE UN NIVEL ────────────────
-  const obtenerEstado = (idx: number): LevelStatus => {
+  // posEnVisibles = posición del nivel dentro de la lista YA FILTRADA,
+  // así el desbloqueo depende del nivel visible anterior, no del índice crudo.
+  const obtenerEstado = (idx: number, posEnVisibles: number): LevelStatus => {
     const lvl = topicProg[idx]; // accedemos al progreso del nivel con índice idx
 
     // ── IF #1: ¿El nivel ya está completado? ─────────────────
     // lvl?.completed usa optional chaining: si lvl no existe, no rompe el código
     if (lvl?.completed) return { state: 'completed', stars: lvl.stars };
 
-    // ── IF #2: ¿Es el primer nivel? ──────────────────────────
-    // El nivel 0 siempre está disponible (no requiere completar nada antes)
-    if (idx === 0) return { state: 'unlocked', stars: 0 };
+    // ── IF #2: ¿Es el primer nivel visible? ──────────────────
+    // El primer nivel de la lista siempre está disponible
+    if (posEnVisibles === 0) return { state: 'unlocked', stars: 0 };
 
-    // ── IF #3: ¿El nivel anterior está completado? ───────────
-    // Para desbloquear el nivel idx, el nivel idx-1 debe estar completado
-    // topicProg[idx - 1]?.completed → accede al nivel anterior con optional chaining
-    if (topicProg[idx - 1]?.completed) return { state: 'unlocked', stars: 0 };
+    // ── IF #3: ¿El nivel visible anterior está completado? ───
+    const idxAnterior = indicesVisibles[posEnVisibles - 1];
+    if (topicProg[idxAnterior]?.completed) return { state: 'unlocked', stars: 0 };
 
     // Si ninguno de los anteriores fue true → el nivel está bloqueado
     return { state: 'locked', stars: 0 };
   };
 
   // ── ESTADÍSTICAS TOTALES DEL TEMA ────────────────────────────
-  // Object.values() extrae los valores del objeto topicProg como arreglo
-  // .reduce() suma todas las estrellas: empieza en 0, va acumulando
-  const totalStars = Object.values(topicProg).reduce((s, l) => s + (l.stars ?? 0), 0);
+  // Solo contamos los niveles que el alumno realmente puede ver/jugar
+  const totalStars = indicesVisibles.reduce((s, idx) => s + (topicProg[idx]?.stars ?? 0), 0);
+  const completedCount = indicesVisibles.filter(idx => topicProg[idx]?.completed).length;
+  const totalLevels = indicesVisibles.length;
+  const maxStars     = totalLevels * 3; // máximo = 3 estrellas × niveles visibles
 
-  // .filter(l => l.completed) → solo los niveles completados → .length los cuenta
-  const completedCount = Object.values(topicProg).filter(l => l.completed).length;
-  const maxStars       = totalLevels * 3; // máximo = 3 estrellas × 8 niveles = 24
-
-  // ── CONSTRUIR EL ARREGLO DE NIVELES ─────────────────────────
-  // Array.from({ length: totalLevels }, (_, i) => {...}) crea un arreglo de 8 elementos.
-  // Por cada posición i (0 al 7), genera un objeto con toda la info del nivel.
-  //
-  // El operador spread ...obtenerEstado(i) "desempaca" el objeto que devuelve la función:
-  //   obtenerEstado(0) → { state: 'unlocked', stars: 0 }
-  //   ...{ state: 'unlocked', stars: 0 } → agrega state y stars al objeto directamente
-  const levels = Array.from({ length: totalLevels }, (_, i) => ({
-    idx:  i,
-    name: levelNames[i] ?? `Nivel ${i + 1}`, // nombre o fallback "Nivel X"
-    pos:  STAR_POS[i] ?? [10 + i * 11, 50],  // posición o fallback distribuido
-    ...obtenerEstado(i),                       // agrega: state y stars
+  // ── CONSTRUIR EL ARREGLO DE NIVELES VISIBLES ─────────────────
+  // La posición en el mapa (pos) se reasigna en orden 0,1,2... según cuántos
+  // niveles hay visibles, para que la constelación se vea completa sin huecos.
+  const levels = indicesVisibles.map((idx, i) => ({
+    idx,
+    name: levelNames[idx] ?? `Nivel ${idx + 1}`,
+    pos:  STAR_POS[i] ?? [10 + i * 11, 50],
+    ...obtenerEstado(idx, i),
   }));
-  // Resultado: arreglo de 8 objetos como:
-  // [ {idx:0, name:'Proporciones Básicas', pos:[8,68], state:'completed', stars:3},
-  //   {idx:1, name:'Tablas de Proporc.', pos:[21,32], state:'unlocked', stars:0},
-  //   {idx:2, ..., state:'locked', stars:0}, ... ]
 
   return (
     <SpaceBackdrop className="const-backdrop">
@@ -108,6 +110,12 @@ export default function VistaConstelacion({ topic, progress, onSelectLevel, onBa
         </div>
       </div>
 
+      {levels.length === 0 ? (
+        <div className="const-empty">
+          <span style={{ fontSize: '2.6rem' }}>🛰️</span>
+          <p>Tu maestro todavía no asignó ejercicios de este tema.</p>
+        </div>
+      ) : (
       <div className="const-map-wrap">
         <div className="const-map">
 
@@ -195,6 +203,7 @@ export default function VistaConstelacion({ topic, progress, onSelectLevel, onBa
           ))}
         </div>
       </div>
+      )}
 
       {/* ── Pie de página con estadísticas ── */}
       <div className="const-footer">
