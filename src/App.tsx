@@ -55,6 +55,7 @@ function calcularEstrellasTotales(progress: Progress): number {
 // URLs base del backend — si cambia el puerto, solo se cambia aquí
 const API_URL_USUARIOS = 'http://localhost:3000/api/usuarios';
 const API_URL_PROGRESO = 'http://localhost:3000/api/progreso';
+const API_URL_TEACHER  = 'http://localhost:3000/api/teacher';
 
 export default function Aplicacion() {
 
@@ -86,6 +87,12 @@ export default function Aplicacion() {
   // ── ESTADO DE LA TIENDA ──────────────────────────────────────
   // Qué accesorios compró el alumno y cuál tiene puesto (se guarda en localStorage)
   const [shopData, setShopData] = useState<ShopData>({ ownedItems: [], equipped: null, spentStars: 0 });
+
+  // ── ESTADO DEL GRUPO DE CLASE ─────────────────────────────────
+  // Si el alumno se unió a un grupo con un código, aquí vive ese grupo
+  // (con los temas y ejercicios que su maestro dejó habilitados).
+  // null = no pertenece a ningún grupo → ve el catálogo completo, sin restricciones.
+  const [misGrupo, setMisGrupo] = useState<any | null>(null);
 
   // ── SINCRONIZACIÓN AUTOMÁTICA DEL PROGRESO ───────────────────
   // useEffect se ejecuta automáticamente cada vez que cambia userName o view.
@@ -142,6 +149,16 @@ export default function Aplicacion() {
 
           // Cargamos los accesorios que este alumno ya había comprado antes
           setShopData(obtenerTiendaDe(datos.usuario.correo));
+
+          // Averiguamos si el alumno pertenece a un grupo de clase (se unió con un código)
+          // Si pertenece, el Dashboard solo mostrará los temas/ejercicios que su maestro asignó
+          try {
+            const resGrupo  = await fetch(`${API_URL_TEACHER}/mi-grupo/${encodeURIComponent(datos.usuario.correo)}`);
+            const dataGrupo = await resGrupo.json();
+            setMisGrupo(dataGrupo.data || null);
+          } catch {
+            setMisGrupo(null);
+          }
         }
 
         // Redirigir según el rol
@@ -275,6 +292,7 @@ export default function Aplicacion() {
     setSelectedLevel(null);
     setProgress({}); // limpiamos el progreso para que no se vea en pantalla al salir
     setShopData({ ownedItems: [], equipped: null, spentStars: 0 }); // limpiamos la tienda en pantalla
+    setMisGrupo(null); // limpiamos el grupo de clase
     setView('login');
   };
 

@@ -22,6 +22,7 @@ export class TeacherController {
         descripcion: descripcion || '',
         grado: grado || '4°',
         id_profesor,
+        codigo: generarCodigoUnico(),
         fecha_creacion: new Date(),
         estudiantes: [] as any[],
         temas: [] as any[],
@@ -60,6 +61,17 @@ export class TeacherController {
       res.json({ message: `Grupos del profesor ${id_profesor}`, data: misGrupos });
     } catch (error) {
       res.status(500).json({ error: 'Error al obtener grupos' });
+    }
+  }
+
+  // GET /api/teacher/mi-grupo/:correo - Grupo al que pertenece un estudiante (si tiene uno)
+  static getGrupoDeEstudiante(req: Request, res: Response) {
+    try {
+      const { correo } = req.params;
+      const grupo = grupos.find(g => g.estudiantes.some((e: any) => e.correo === correo));
+      res.json({ message: grupo ? 'Grupo encontrado' : 'El estudiante no está en ningún grupo', data: grupo || null });
+    } catch (error) {
+      res.status(500).json({ error: 'Error al obtener el grupo del estudiante' });
     }
   }
 

@@ -7,6 +7,7 @@ const router = Router();
 router.post('/grupos', TeacherController.createGrupo);
 router.get('/grupos/:id', TeacherController.getGrupo);
 router.get('/mis-grupos/:id_profesor', TeacherController.getMisGrupos);
+router.get('/mi-grupo/:correo', TeacherController.getGrupoDeEstudiante);
 
 // Gestión de estudiantes en grupos
 router.post('/grupos/:id/estudiantes', TeacherController.addEstudianteToGrupo);

@@ -8,7 +8,11 @@ interface Props {
 
 const GRADES = ['4', '5', '6'];
 
-const emptyForm = { descripcion: '', tip: '', id_tema: '', id_nivel: '', grado: '' };
+const emptyForm = {
+  descripcion: '', tip: '', id_tema: '', id_nivel: '', grado: '',
+  options: ['', '', '', ''] as string[],
+  correctIndex: '' as string,
+};
 
 export default function AdminView({ onBack }: Props) {
   const [tab, setTab] = useState<'list' | 'create'>('list');
@@ -47,6 +51,14 @@ export default function AdminView({ onBack }: Props) {
     });
   };
 
+  const handleOptionChange = (idx: number, value: string) => {
+    setFormData(prev => {
+      const options = [...prev.options];
+      options[idx] = value;
+      return { ...prev, options };
+    });
+  };
+
   useEffect(() => { handleFetchEjercicios(); }, []);
 
   const handleFetchEjercicios = async () => {
@@ -66,6 +78,26 @@ export default function AdminView({ onBack }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (formData.options.some(op => !op.trim())) {
+      setMsg({ text: 'Completa las 4 respuestas.', ok: false });
+      return;
+    }
+    if (formData.correctIndex === '') {
+      setMsg({ text: 'Elige cuál respuesta es la correcta.', ok: false });
+      return;
+    }
+
+    const payload = {
+      descripcion: formData.descripcion,
+      tip: formData.tip,
+      id_tema: formData.id_tema,
+      id_nivel: formData.id_nivel,
+      grado: formData.grado,
+      options: formData.options,
+      correct: formData.options[Number(formData.correctIndex)],
+    };
+
     try {
       const url = editingId
         ? `http://localhost:3000/api/admin/ejercicios/${editingId}`
@@ -73,7 +105,7 @@ export default function AdminView({ onBack }: Props) {
       await fetch(url, {
         method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       setMsg({ text: editingId ? '✅ ¡Ejercicio actualizado!' : '✅ ¡Ejercicio creado!', ok: true });
       resetForm();
@@ -86,12 +118,16 @@ export default function AdminView({ onBack }: Props) {
   };
 
   const handleEditEjercicio = (ej: any) => {
+    const options: string[] = ej.options && ej.options.length === 4 ? ej.options : ['', '', '', ''];
+    const correctIndex = options.findIndex((op: string) => op === ej.correct);
     setFormData({
       descripcion: ej.descripcion || '',
       tip: ej.tip || '',
       id_tema: ej.id_tema || '',
       id_nivel: String(ej.id_nivel ?? ''),
       grado: String(ej.grado || ''),
+      options,
+      correctIndex: correctIndex >= 0 ? String(correctIndex) : '',
     });
     setEditingId(ej.id);
     setMsg(null);
@@ -162,6 +198,15 @@ export default function AdminView({ onBack }: Props) {
                           {ej.id_tema ? ` · ${nombreTema(ej.id_tema)}` : ''}
                           {ej.id_nivel !== undefined && ej.id_nivel !== '' ? ` · ${nombreNivel(ej.id_tema, ej.id_nivel)}` : ''}
                         </small>
+                        {ej.options && ej.options.length > 0 && (
+                          <div className="ej-options">
+                            {ej.options.map((op: string, i: number) => (
+                              <span key={i} className={`ej-option ${op === ej.correct ? 'is-correct' : ''}`}>
+                                {op === ej.correct ? '✅' : '▫️'} {op}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <div className="ej-actions">
                         <button className="btn-edit" onClick={() => handleEditEjercicio(ej)}>✏️ Editar</button>
@@ -227,6 +272,31 @@ export default function AdminView({ onBack }: Props) {
                     placeholder="¿Cuánto es 2 + 2?"
                     required
                   />
+                </div>
+
+                <div className="form-group">
+                  <label>Respuestas * <span className="form-hint">(elige la correcta)</span></label>
+                  <div className="options-list">
+                    {formData.options.map((op, idx) => (
+                      <label key={idx} className={`option-row ${formData.correctIndex === String(idx) ? 'is-correct' : ''}`}>
+                        <input
+                          type="radio"
+                          name="correctIndex"
+                          checked={formData.correctIndex === String(idx)}
+                          onChange={() => setFormData(prev => ({ ...prev, correctIndex: String(idx) }))}
+                        />
+                        <input
+                          type="text"
+                          className="option-input"
+                          value={op}
+                          onChange={e => handleOptionChange(idx, e.target.value)}
+                          placeholder={`Respuesta ${idx + 1}`}
+                          required
+                        />
+                        {formData.correctIndex === String(idx) && <span className="option-check">✅</span>}
+                      </label>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="form-group">

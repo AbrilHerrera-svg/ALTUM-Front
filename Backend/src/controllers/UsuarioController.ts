@@ -9,6 +9,7 @@
 
 import { Request, Response } from 'express';
 import { Usuario } from '../models/Usuario';
+import { agregarEstudiantePorCodigo } from './TeacherController';
 
 export class UsuarioController {
 
@@ -84,7 +85,7 @@ export class UsuarioController {
 
   // ── CREAR → POST /api/usuarios ───────────────────────────────
   public crear(req: Request, res: Response): void {
-    const { nombre, grado, correo, avatar, role, adminSecret, contraseña } = req.body;
+    const { nombre, grado, correo, avatar, role, adminSecret, contraseña, classCode } = req.body;
 
     // ── IF #1: Validación de campo obligatorio ───────────────
     // Si NO existe el nombre (!nombre es true cuando nombre es '', null, undefined)
@@ -157,7 +158,30 @@ export class UsuarioController {
     // push(nuevoUsuario con id:3)
     // Después: [ Usuario{id:1}, Usuario{id:2}, Usuario{id:3} ]
     UsuarioController.listaUsuarios.push(nuevoUsuario);
-    res.status(201).json({ mensaje: 'Creado con éxito', usuario: nuevoUsuario.toJSON() });
+
+    // Si es estudiante y trajo un código de clase, lo unimos automáticamente al grupo
+    let grupoUnido: string | null = null;
+    let codigoInvalido = false;
+    if (finalRole === 'student' && classCode && String(classCode).trim()) {
+      const usuarioJSON = nuevoUsuario.toJSON();
+      const grupo = agregarEstudiantePorCodigo(String(classCode).trim(), {
+        id_usuario: usuarioJSON.id as number,
+        nombre: usuarioJSON.nombre,
+        correo: usuarioJSON.correo,
+      });
+      if (grupo) {
+        grupoUnido = grupo.nombre_grupo;
+      } else {
+        codigoInvalido = true;
+      }
+    }
+
+    res.status(201).json({
+      mensaje: 'Creado con éxito',
+      usuario: nuevoUsuario.toJSON(),
+      grupoUnido,
+      codigoInvalido,
+    });
     // 201 = Created (se creó un recurso nuevo exitosamente)
   }
 
