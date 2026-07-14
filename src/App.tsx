@@ -393,12 +393,12 @@ export default function Aplicacion() {
 
       {/* Panel del Administrador — CRUD de ejercicios */}
       {view === 'admin' && (
-        <AdminView onBack={() => setView('dashboard')} />
+        <AdminView onBack={alCerrarSesion} />
       )}
 
       {/* Panel del Maestro — Gestión de grupos */}
       {view === 'teacher' && (
-        <TeacherView userEmail={userEmail} onBack={() => setView('dashboard')} />
+        <TeacherView userEmail={userEmail} onBack={alCerrarSesion} />
       )}
     </>
   );

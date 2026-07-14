@@ -57,11 +57,12 @@ export class UsuarioController {
   // "static" → existe UN SOLO arreglo para toda la app (no uno por petición)
   // "private" → solo esta clase puede acceder a él
   private static listaUsuarios: Usuario[] = [
-    new Usuario('Astronauta Inicial', 'Universidad', 'altum@utcancun.edu.mx', '👨‍🚀', 1)
+    new Usuario('Astronauta Inicial', 'Universidad', 'altum@utcancun.edu.mx', '👨‍🚀', 1),
+    new Usuario('Admin', 'Universidad', 'admin@altum.com', '🛠️', 2, 'admin', 'dev_admin_2024'),
   ];
 
-  // Contador para generar IDs únicos. Empieza en 2 porque el usuario de arriba ya tiene el 1.
-  private static contadorId = 2;
+  // Contador para generar IDs únicos. Empieza en 3 porque los usuarios de arriba ya tienen 1 y 2.
+  private static contadorId = 3;
 
 
   // ── LISTAR → GET /api/usuarios ───────────────────────────────
