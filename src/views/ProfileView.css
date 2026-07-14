@@ -214,6 +214,34 @@
   text-align: center;
 }
 
+.pv-avatar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pv-avatar-opt {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  border: 2px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.1);
+  font-size: 1.6rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s;
+}
+
+.pv-avatar-opt:hover { transform: scale(1.12); border-color: rgba(255,255,255,0.4); }
+.pv-avatar-opt.selected {
+  border-color: #fbbf24;
+  background: rgba(251,191,36,0.15);
+  box-shadow: 0 0 0 3px rgba(251,191,36,0.25);
+  transform: scale(1.1);
+}
+
 .pv-empty-msg {
   color: rgba(255,255,255,0.6);
   font-size: 0.85rem;
