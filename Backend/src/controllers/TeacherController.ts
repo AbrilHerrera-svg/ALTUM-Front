@@ -1,229 +1,152 @@
+// ============================================================
+// TeacherController.ts — refactorizado al patrón "recepcionista".
+// Ya no guarda grupos en un array en memoria: todo vive en MySQL
+// a través de GrupoManager.
+// ============================================================
+
 import { Request, Response } from 'express';
-
-// "Base de datos" en memoria de los grupos del maestro.
-// Cada grupo guarda sus estudiantes, temas y ejercicios asignados como arreglos anidados.
-let grupos: any[] = [];
-let contadorId = 1;
-
-// Genera un código corto y fácil de compartir, ej: "X7K2QT"
-function generarCodigoUnico(): string {
-  const CARACTERES = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin 0/O ni 1/I para evitar confusión
-  let codigo = '';
-  do {
-    codigo = Array.from({ length: 6 }, () => CARACTERES[Math.floor(Math.random() * CARACTERES.length)]).join('');
-  } while (grupos.some(g => g.codigo === codigo));
-  return codigo;
-}
-
-// Usado por UsuarioController al registrar un estudiante con código de clase.
-// Devuelve el grupo al que se unió, o null si el código no existe.
-export function agregarEstudiantePorCodigo(codigo: string, estudiante: { id_usuario: number; nombre: string; correo: string }) {
-  if (!codigo) return null;
-  const grupo = grupos.find(g => g.codigo === codigo.trim().toUpperCase());
-  if (!grupo) return null;
-
-  if (!grupo.estudiantes.some((e: any) => e.id_usuario === estudiante.id_usuario)) {
-    grupo.estudiantes.push(estudiante);
-  }
-  return grupo;
-}
+import { GrupoManager } from '../services/GrupoManager';
 
 export class TeacherController {
-  // POST /api/teacher/grupos - Crear nuevo grupo
-  static createGrupo(req: Request, res: Response) {
-    try {
-      const { nombre_grupo, descripcion, grado, id_profesor } = req.body;
 
-      if (!nombre_grupo) {
-        res.status(400).json({ error: 'El nombre del grupo es obligatorio' });
+  // POST /api/teacher/grupos — Crear nuevo grupo
+  public async createGrupo(req: Request, res: Response): Promise<void> {
+    try {
+      const { nombre_grupo, id_tutor } = req.body;
+
+      if (!nombre_grupo || !id_tutor) {
+        res.status(400).json({ error: 'nombre_grupo e id_tutor son obligatorios' });
         return;
       }
 
-      const nuevo = {
-        id_grupo: contadorId++,
-        nombre_grupo,
-        descripcion: descripcion || '',
-        grado: grado || '4°',
-        id_profesor,
-        codigo: generarCodigoUnico(),
-        fecha_creacion: new Date(),
-        estudiantes: [] as any[],
-        temas: [] as any[],
-        ejercicios: [] as any[],
-      };
-
-      grupos.push(nuevo);
-      res.status(201).json({ message: 'Grupo creado', data: nuevo });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al crear grupo' });
+      const grupo = await GrupoManager.crear(nombre_grupo, Number(id_tutor));
+      res.status(201).json({ message: 'Grupo creado', data: grupo });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al crear grupo', detalle: error.message });
     }
   }
 
-  // GET /api/teacher/grupos/:id - Ver grupo específico
-  static getGrupo(req: Request, res: Response) {
+  // GET /api/teacher/grupos/:id — Ver grupo específico
+  public async getGrupo(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const grupo = grupos.find(g => g.id_grupo === Number(id));
+      const grupo = await GrupoManager.buscarPorId(Number(id));
 
       if (!grupo) {
         res.status(404).json({ error: 'Grupo no encontrado' });
         return;
       }
-
       res.json({ message: `Grupo ${id} obtenido`, data: grupo });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al obtener grupo' });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al obtener grupo', detalle: error.message });
     }
   }
 
-  // GET /api/teacher/mis-grupos/:id_profesor - Listar grupos del profesor
-  static getMisGrupos(req: Request, res: Response) {
+  // GET /api/teacher/mis-grupos/:id_tutor — Listar grupos del tutor
+  public async getMisGrupos(req: Request, res: Response): Promise<void> {
     try {
-      const { id_profesor } = req.params;
-      const misGrupos = grupos.filter(g => g.id_profesor === id_profesor);
-      res.json({ message: `Grupos del profesor ${id_profesor}`, data: misGrupos });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al obtener grupos' });
+      const { id_tutor } = req.params;
+      const grupos = await GrupoManager.listarPorTutor(Number(id_tutor));
+      res.json({ message: `Grupos del tutor ${id_tutor}`, data: grupos });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al obtener grupos', detalle: error.message });
     }
   }
 
-  // GET /api/teacher/mi-grupo/:correo - Grupo al que pertenece un estudiante (si tiene uno)
-  static getGrupoDeEstudiante(req: Request, res: Response) {
+  // GET /api/teacher/mi-grupo/:id_estudiante — Grupo al que pertenece un alumno
+  public async getGrupoDeEstudiante(req: Request, res: Response): Promise<void> {
     try {
-      const { correo } = req.params;
-      const grupo = grupos.find(g => g.estudiantes.some((e: any) => e.correo === correo));
-      res.json({ message: grupo ? 'Grupo encontrado' : 'El estudiante no está en ningún grupo', data: grupo || null });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al obtener el grupo del estudiante' });
+      const { id_estudiante } = req.params;
+      const grupo = await GrupoManager.grupoDeEstudiante(Number(id_estudiante));
+      res.json({
+        message: grupo ? 'Grupo encontrado' : 'El estudiante no pertenece a ningún grupo',
+        data: grupo,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al obtener el grupo del estudiante', detalle: error.message });
     }
   }
 
-  // POST /api/teacher/grupos/:id/estudiantes - Agregar estudiante a grupo
-  static addEstudianteToGrupo(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      const { id_usuario, nombre, correo } = req.body;
-      const grupo = grupos.find(g => g.id_grupo === Number(id));
-
-      if (!grupo) {
-        res.status(404).json({ error: 'Grupo no encontrado' });
-        return;
-      }
-
-      if (grupo.estudiantes.some((e: any) => e.id_usuario === id_usuario)) {
-        res.status(400).json({ error: 'El estudiante ya está en el grupo' });
-        return;
-      }
-
-      grupo.estudiantes.push({ id_usuario, nombre, correo });
-      res.json({ message: `Estudiante ${id_usuario} agregado al grupo ${id}`, data: grupo });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al agregar estudiante' });
-    }
-  }
-
-  // DELETE /api/teacher/grupos/:id/estudiantes/:id_usuario - Eliminar estudiante
-  static removeEstudianteFromGrupo(req: Request, res: Response) {
-    try {
-      const { id, id_usuario } = req.params;
-      const grupo = grupos.find(g => g.id_grupo === Number(id));
-
-      if (!grupo) {
-        res.status(404).json({ error: 'Grupo no encontrado' });
-        return;
-      }
-
-      grupo.estudiantes = grupo.estudiantes.filter((e: any) => String(e.id_usuario) !== id_usuario);
-      res.json({ message: `Estudiante ${id_usuario} removido del grupo ${id}`, data: grupo });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al remover estudiante' });
-    }
-  }
-
-  // POST /api/teacher/grupos/:id/temas - Asignar tema a grupo
-  static assignTemaToGrupo(req: Request, res: Response) {
+  // GET /api/teacher/grupos/:id/estudiantes — Alumnos de un grupo
+  public async getEstudiantesDeGrupo(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { id_tema, nombre_tema } = req.body;
-      const grupo = grupos.find(g => g.id_grupo === Number(id));
-
-      if (!grupo) {
-        res.status(404).json({ error: 'Grupo no encontrado' });
-        return;
-      }
-
-      if (grupo.temas.some((t: any) => t.id_tema === id_tema)) {
-        res.status(400).json({ error: 'El tema ya está asignado a este grupo' });
-        return;
-      }
-
-      grupo.temas.push({ id_tema, nombre_tema });
-      res.json({ message: `Tema ${id_tema} asignado al grupo ${id}`, data: grupo });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al asignar tema' });
+      const estudiantes = await GrupoManager.estudiantesDelGrupo(Number(id));
+      res.json({ message: `Alumnos del grupo ${id}`, data: estudiantes });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al obtener alumnos del grupo', detalle: error.message });
     }
   }
 
-  // DELETE /api/teacher/grupos/:id/temas/:id_tema - Remover tema de grupo
-  static removeTemaFromGrupo(req: Request, res: Response) {
-    try {
-      const { id, id_tema } = req.params;
-      const grupo = grupos.find(g => g.id_grupo === Number(id));
-
-      if (!grupo) {
-        res.status(404).json({ error: 'Grupo no encontrado' });
-        return;
-      }
-
-      grupo.temas = grupo.temas.filter((t: any) => t.id_tema !== id_tema);
-      // Al quitar un tema, también se quitan los ejercicios que dependían de él
-      grupo.ejercicios = grupo.ejercicios.filter((e: any) => e.id_tema !== id_tema);
-      res.json({ message: `Tema ${id_tema} removido del grupo ${id}`, data: grupo });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al remover tema' });
-    }
-  }
-
-  // POST /api/teacher/grupos/:id/ejercicios - Asignar ejercicio (nivel de un tema) a grupo
-  static assignEjercicioToGrupo(req: Request, res: Response) {
+  // POST /api/teacher/grupos/:id/estudiantes — Agregar alumno YA REGISTRADO al grupo
+  public async addEstudianteToGrupo(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { id_tema, id_nivel, nombre_nivel } = req.body;
-      const grupo = grupos.find(g => g.id_grupo === Number(id));
+      const { id_usuario } = req.body;
 
-      if (!grupo) {
-        res.status(404).json({ error: 'Grupo no encontrado' });
+      if (!id_usuario) {
+        res.status(400).json({ error: 'id_usuario es obligatorio' });
         return;
       }
 
-      const id_ejercicio = `${id_tema}-${id_nivel}`;
-      if (grupo.ejercicios.some((e: any) => e.id_ejercicio === id_ejercicio)) {
-        res.status(400).json({ error: 'Ese ejercicio ya está asignado a este grupo' });
-        return;
-      }
-
-      grupo.ejercicios.push({ id_ejercicio, id_tema, id_nivel, nombre_nivel });
-      res.json({ message: `Ejercicio ${id_ejercicio} asignado al grupo ${id}`, data: grupo });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al asignar ejercicio' });
+      await GrupoManager.agregarEstudiante(Number(id), Number(id_usuario));
+      res.status(200).json({ message: 'Alumno agregado al grupo' });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al agregar alumno al grupo', detalle: error.message });
     }
   }
 
-  // DELETE /api/teacher/grupos/:id/ejercicios/:id_ejercicio - Remover ejercicio
-  static removeEjercicioFromGrupo(req: Request, res: Response) {
+  // DELETE /api/teacher/grupos/:id/estudiantes/:id_usuario — Quitar alumno del grupo
+  public async removeEstudianteFromGrupo(req: Request, res: Response): Promise<void> {
     try {
-      const { id, id_ejercicio } = req.params;
-      const grupo = grupos.find(g => g.id_grupo === Number(id));
+      const { id_usuario } = req.params;
+      await GrupoManager.quitarEstudiante(Number(id_usuario));
+      res.status(200).json({ message: 'Alumno quitado del grupo' });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al quitar alumno del grupo', detalle: error.message });
+    }
+  }
 
-      if (!grupo) {
-        res.status(404).json({ error: 'Grupo no encontrado' });
+  // POST /api/teacher/grupos/:id/temas — Asignar un tema al grupo
+  public async assignTemaToGrupo(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { id_tema } = req.body;
+
+      if (!id_tema) {
+        res.status(400).json({ error: 'id_tema es obligatorio' });
         return;
       }
 
-      grupo.ejercicios = grupo.ejercicios.filter((e: any) => e.id_ejercicio !== id_ejercicio);
-      res.json({ message: `Ejercicio ${id_ejercicio} removido del grupo ${id}`, data: grupo });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al remover ejercicio' });
+      await GrupoManager.asignarTema(Number(id), Number(id_tema));
+      res.status(200).json({ message: 'Tema asignado al grupo' });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al asignar tema al grupo', detalle: error.message });
     }
+  }
+
+  // DELETE /api/teacher/grupos/:id/temas/:id_tema — Quitar tema del grupo
+  public async removeTemaFromGrupo(req: Request, res: Response): Promise<void> {
+    try {
+      const { id_tema } = req.params;
+      await GrupoManager.quitarTema(Number(id_tema));
+      res.status(200).json({ message: 'Tema quitado del grupo' });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al quitar tema del grupo', detalle: error.message });
+    }
+  }
+
+  // ── EJERCICIOS POR GRUPO — TODAVÍA NO IMPLEMENTADO ─────────
+  // Tu tabla `ejercicios` solo tiene FK a `niveles` (no a `grupos`), y el
+  // catálogo real que usa el juego vive hardcodeado en EjercicioController,
+  // no en esta tabla. Falta decidir el diseño antes de programar esto:
+  // ¿se agrega una tabla puente grupo_ejercicio, o se asignan por TEMA
+  // (que sí tiene id_grupo) y ya no por ejercicio individual?
+  public async assignEjercicioToGrupo(req: Request, res: Response): Promise<void> {
+    res.status(501).json({ error: 'Asignar ejercicios por grupo aún no está implementado.' });
+  }
+
+  public async removeEjercicioFromGrupo(req: Request, res: Response): Promise<void> {
+    res.status(501).json({ error: 'Quitar ejercicios por grupo aún no está implementado.' });
   }
 }

@@ -12,6 +12,7 @@
 
 import { useState }         from 'react';
 import { obtenerRango } from '../data/shop';
+import { cambiarContrasena } from '../services/api';
 import type { Progress, User, ShopData } from '../types';
 import './ProfileView.css';
 
@@ -49,6 +50,7 @@ interface ProfileUpdate { name: string; grade: string; avatar: string; }
 
 // Props que recibe de App.tsx
 interface Props {
+  userId:          number;
   userName:        string;
   userGrade:       string;
   userEmail:       string;
@@ -65,7 +67,7 @@ interface Props {
 // Los dos modos de la pantalla
 type Tab = 'profile' | 'password';
 
-export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar, progress, onBack, onUpdate, onLogout, onResetProgress }: Props) {
+export default function VistaPerfil({ userId, userName, userGrade, userEmail, userAvatar, progress, onBack, onUpdate, onLogout, onResetProgress }: Props) {
 
   // ── ESTADO DE PESTAÑAS ───────────────────────────────────────
   const [tab, setTab] = useState<Tab>('profile'); // empieza en la pestaña de perfil
@@ -125,14 +127,11 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
   };
 
   // ── FUNCIÓN: CAMBIAR CONTRASEÑA ──────────────────────────────
-  const alCambiarContrasena = () => {
+  const alCambiarContrasena = async () => {
     setPwMsg({ text: '', ok: false });
 
-    // Verifica la contraseña actual contra localStorage
-    const users = obtenerUsuarios();
-    const user  = users.find(u => u.email === userEmail);
-    if (!user || user.password !== currentPw) {
-      setPwMsg({ text: 'La contraseña actual es incorrecta.', ok: false }); return;
+    if (!currentPw) {
+      setPwMsg({ text: 'Ingresa tu contraseña actual.', ok: false }); return;
     }
     if (newPw.length < 6) {
       setPwMsg({ text: 'La nueva contraseña debe tener al menos 6 caracteres.', ok: false }); return;
@@ -141,15 +140,21 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
       setPwMsg({ text: 'Las contraseñas nuevas no coinciden.', ok: false }); return;
     }
 
-    // Guarda la nueva contraseña en localStorage
-    const idx = users.findIndex(u => u.email === userEmail);
-    users[idx].password = newPw;
-    guardarUsuarios(users);
+    try {
+      const { ok, data } = await cambiarContrasena(userId, currentPw, newPw);
 
-    // Limpia los campos y muestra mensaje de éxito
-    setCurrentPw(''); setNewPw(''); setConfirmPw('');
-    setPwMsg({ text: '✅ ¡Contraseña actualizada!', ok: true });
-    setTimeout(() => setPwMsg({ text: '', ok: false }), 2500);
+      if (!ok) {
+        setPwMsg({ text: data.error || 'La contraseña actual es incorrecta.', ok: false });
+        return;
+      }
+
+      // Limpia los campos y muestra mensaje de éxito
+      setCurrentPw(''); setNewPw(''); setConfirmPw('');
+      setPwMsg({ text: '✅ ¡Contraseña actualizada!', ok: true });
+      setTimeout(() => setPwMsg({ text: '', ok: false }), 2500);
+    } catch (err) {
+      setPwMsg({ text: 'Error de red al cambiar la contraseña.', ok: false });
+    }
   };
 
   return (

@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
 import { TOPICS_BY_GRADE, LEVEL_NAMES } from '../data/topics';
+import {
+  obtenerEjerciciosAdmin,
+  crearEjercicioAdmin,
+  actualizarEjercicioAdmin,
+  eliminarEjercicioAdmin,
+} from '../services/api';
 import './AdminView.css';
 
 interface Props {
@@ -63,8 +69,7 @@ export default function AdminView({ onBack }: Props) {
 
   const handleFetchEjercicios = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/admin/ejercicios');
-      const data = await response.json();
+      const data = await obtenerEjerciciosAdmin();
       setEjercicios(data.data || []);
     } catch (error) {
       console.error('Error:', error);
@@ -99,14 +104,11 @@ export default function AdminView({ onBack }: Props) {
     };
 
     try {
-      const url = editingId
-        ? `http://localhost:3000/api/admin/ejercicios/${editingId}`
-        : 'http://localhost:3000/api/admin/ejercicios';
-      await fetch(url, {
-        method: editingId ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      if (editingId) {
+        await actualizarEjercicioAdmin(editingId, payload);
+      } else {
+        await crearEjercicioAdmin(payload);
+      }
       setMsg({ text: editingId ? '✅ ¡Ejercicio actualizado!' : '✅ ¡Ejercicio creado!', ok: true });
       resetForm();
       await handleFetchEjercicios();
@@ -137,7 +139,7 @@ export default function AdminView({ onBack }: Props) {
   const handleDeleteEjercicio = async (id: number) => {
     if (!confirm('¿Eliminar este ejercicio?')) return;
     try {
-      await fetch(`http://localhost:3000/api/admin/ejercicios/${id}`, { method: 'DELETE' });
+      await eliminarEjercicioAdmin(id);
       handleFetchEjercicios();
     } catch (error) {
       console.error('Error:', error);

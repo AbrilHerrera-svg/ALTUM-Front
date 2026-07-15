@@ -2,11 +2,12 @@
 // App.tsx — CEREBRO PRINCIPAL DE LA APP
 // Este componente hace DOS cosas fundamentales:
 //   1. Controla qué pantalla se muestra (navegación)
-//   2. Es el único que habla directamente con el backend
+//   2. Es el único que decide QUÉ pedir al backend
 //
-// Las vistas (Login, Dashboard, etc.) solo muestran datos.
-// Cuando el usuario hace algo (clic, respuesta, etc.), le avisan
-// al App.tsx y ÉL decide qué hacer y qué pantalla mostrar.
+// Ya NO usa fetch() directamente: todas las peticiones pasan por
+// services/api.ts (el mismo patrón que ServiceForm → api.ts en
+// Taller Mecánico). Si el día de mañana cambia el puerto o la URL
+// del backend, solo se toca api.ts — App.tsx no cambia.
 // ============================================================
 
 import { useState, useEffect } from 'react';
@@ -24,6 +25,17 @@ import VistaTienda       from './views/ShopView';
 import AdminView         from './views/AdminView';
 import TeacherView       from './views/TeacherView';
 import type { Topic, Progress, ViewName, ShopData } from './types';
+
+// Importamos las funciones que hablan con el backend.
+// App.tsx ya no sabe (ni le importa) qué URL hay detrás de cada una.
+import {
+  iniciarSesionORegistrar,
+  actualizarPerfil as apiActualizarPerfil,
+  eliminarCuenta as apiEliminarCuenta,
+  obtenerProgreso,
+  guardarProgresoDeNivel,
+  obtenerGrupoDeEstudiante,
+} from './services/api';
 
 // Guarda la tienda de cada alumno en el navegador, separado por correo
 const CLAVE_TIENDA = 'altum_shop';
@@ -52,11 +64,6 @@ function calcularEstrellasTotales(progress: Progress): number {
   return total;
 }
 
-// URLs base del backend — si cambia el puerto, solo se cambia aquí
-const API_URL_USUARIOS = 'http://localhost:3000/api/usuarios';
-const API_URL_PROGRESO = 'http://localhost:3000/api/progreso';
-const API_URL_TEACHER  = 'http://localhost:3000/api/teacher';
-
 export default function Aplicacion() {
 
   // ── ESTADO DE NAVEGACIÓN ─────────────────────────────────────
@@ -72,7 +79,7 @@ export default function Aplicacion() {
   const [userGrade, setUserGrade] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userAvatar,setUserAvatar]= useState('👨‍🚀');
-  const [userRole,  setUserRole]  = useState<'student' | 'teacher' | 'admin'>('student');
+  const [userRole,  setUserRole]  = useState<'estudiante' | 'tutor' | 'administrador'>('estudiante');
 
   // ── ESTADO DEL JUEGO ─────────────────────────────────────────
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null); // tema seleccionado
@@ -102,9 +109,7 @@ export default function Aplicacion() {
 
     console.log("🛰️ Intentando descargar progreso para el usuario:", userName);
 
-    // fetch hace una petición GET al backend para traer el progreso del alumno
-    fetch(`${API_URL_PROGRESO}/${userName}`)
-      .then((res) => res.json())         // convierte la respuesta de texto a objeto JavaScript
+    obtenerProgreso(userName)
       .then((data) => {
         console.log("📦 ¡Esto es lo que me respondió el BackEnd de verdad!:", data);
         setProgress(data);               // guarda el progreso en el estado → actualiza la pantalla
@@ -115,36 +120,28 @@ export default function Aplicacion() {
   // ── INICIAR SESIÓN / REGISTRARSE ─────────────────────────────
   // REQUISITO 7 y 9: Operación CREATE (POST) al iniciar sesión / registrarse
   // El backend distingue automáticamente si es login o registro según si el nombre ya existe.
-  const alIniciarSesion = async (name: string, grade: string, email: string, avatar: string, role: 'student' | 'teacher' | 'admin' = 'student') => {
+  const alIniciarSesion = async (name: string, grade: string, email: string, avatar: string, role: 'estudiante' | 'tutor' | 'administrador' = 'estudiante') => {
     try {
-      // await pausa esta función hasta que el backend responda
-      const respuesta = await fetch(API_URL_USUARIOS, {
-        method: 'POST',                                  // POST = crear/enviar datos
-        headers: { 'Content-Type': 'application/json' }, // avisa que mandamos JSON
-        body: JSON.stringify({                            // convierte el objeto a texto JSON
-          nombre: name,
-          grado: grade,
-          correo: email,
-          avatar: avatar || '👨‍🚀',
-          role: role
-        }),
+      // iniciarSesionORegistrar hace el POST por dentro; aquí ya solo recibimos el resultado
+      const datos = await iniciarSesionORegistrar({
+        nombre: name,
+        grado: grade,
+        correo: email,
+        role: role,
       });
 
-      const datos = await respuesta.json(); // convierte la respuesta a objeto JavaScript
-
-      if (respuesta.ok) { // .ok es true si el código HTTP fue 200 o 201
+      if (datos.usuario) {
         // Guardamos los datos del usuario en los estados de React
-        setUserId(datos.usuario.id);
+        setUserId(datos.usuario.id_usuario ?? datos.usuario.id);
         setUserName(datos.usuario.nombre);
-        setUserGrade(datos.usuario.grado);
+        setUserGrade(datos.usuario.grado ?? grade);
         setUserEmail(datos.usuario.correo);
-        setUserAvatar(datos.usuario.avatar);
+        setUserAvatar(datos.usuario.avatar || avatar || '👨‍🚀');
         setUserRole(role);
 
         // Descargamos el progreso inmediatamente para que el Dashboard no aparezca vacío
-        if (role === 'student') {
-          const resProgreso  = await fetch(`${API_URL_PROGRESO}/${datos.usuario.nombre}`);
-          const dataProgreso = await resProgreso.json();
+        if (role === 'estudiante') {
+          const dataProgreso = await obtenerProgreso(datos.usuario.nombre);
           setProgress(dataProgreso);
 
           // Cargamos los accesorios que este alumno ya había comprado antes
@@ -153,8 +150,8 @@ export default function Aplicacion() {
           // Averiguamos si el alumno pertenece a un grupo de clase (se unió con un código)
           // Si pertenece, el Dashboard solo mostrará los temas/ejercicios que su maestro asignó
           try {
-            const resGrupo  = await fetch(`${API_URL_TEACHER}/mi-grupo/${encodeURIComponent(datos.usuario.correo)}`);
-            const dataGrupo = await resGrupo.json();
+            const idUsuario = datos.usuario.id_usuario ?? datos.usuario.id;
+            const dataGrupo = await obtenerGrupoDeEstudiante(idUsuario);
             setMisGrupo(dataGrupo.data || null);
           } catch {
             setMisGrupo(null);
@@ -162,9 +159,9 @@ export default function Aplicacion() {
         }
 
         // Redirigir según el rol
-        if (role === 'admin') {
+        if (role === 'administrador') {
           setView('admin');
-        } else if (role === 'teacher') {
+        } else if (role === 'tutor') {
           setView('teacher');
         } else {
           setView('dashboard');
@@ -181,16 +178,15 @@ export default function Aplicacion() {
     if (!userId) return; // si no hay usuario logueado, no hace nada
 
     try {
-      // PUT con el ID en la URL → el backend busca ese usuario y lo reemplaza
-      const respuesta = await fetch(`${API_URL_USUARIOS}/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre: name, grado: grade, correo: userEmail, avatar }),
+      // apiActualizarPerfil hace el PUT con el ID en la URL por dentro
+      const datos = await apiActualizarPerfil(userId, {
+        nombre: name,
+        grado: grade,
+        correo: userEmail,
+        avatar,
       });
 
-      const datos = await respuesta.json();
-
-      if (respuesta.ok) {
+      if (datos.usuario) {
         // Actualizamos los estados locales para reflejar los cambios en pantalla al instante
         setUserName(datos.usuario.nombre);
         setUserGrade(datos.usuario.grado);
@@ -209,13 +205,9 @@ export default function Aplicacion() {
     if (!userId) return;
 
     try {
-      // DELETE con el ID en la URL → el backend elimina ese usuario del array
-      const respuesta = await fetch(`${API_URL_USUARIOS}/${userId}`, {
-        method: 'DELETE',
-        // No necesita body porque solo usamos el ID de la URL
-      });
+      const datos = await apiEliminarCuenta(userId);
 
-      if (respuesta.ok) {
+      if (datos.mensaje) {
         alCerrarSesion(); // si se borró en el backend, cerramos sesión en el frontend también
       } else {
         console.error('Error al eliminar en el BackEnd');
@@ -232,20 +224,14 @@ export default function Aplicacion() {
     if (!selectedTopic || selectedLevel === null || !userName) return;
 
     try {
-      const respuesta = await fetch(`${API_URL_PROGRESO}/guardar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          alumnoNombre: userName,
-          topicId:      selectedTopic.id,
-          levelIndex:   selectedLevel,
-          stars:        stars
-        })
+      const datos = await guardarProgresoDeNivel({
+        alumnoNombre: userName,
+        topicId:      selectedTopic.id,
+        levelIndex:   selectedLevel,
+        stars:        stars,
       });
 
-      if (respuesta.ok) {
-        const datos = await respuesta.json();
-
+      if (datos.success) {
         // Actualizamos el progreso local con la respuesta del backend
         // ...prev copia todo el progreso anterior (spread operator)
         // [selectedTopic.id] reemplaza solo el tema que acaba de jugar
@@ -364,6 +350,7 @@ export default function Aplicacion() {
       {/* Perfil del alumno — editar nombre, grado, avatar, ver tienda */}
       {view === 'profile' && (
         <VistaPerfil
+          userId={userId ?? 0}
           userName={userName}
           userGrade={userGrade}
           userEmail={userEmail}
@@ -432,7 +419,7 @@ export default function Aplicacion() {
 
       {/* Panel del Maestro — Gestión de grupos */}
       {view === 'teacher' && (
-        <TeacherView userEmail={userEmail} onBack={alCerrarSesion} />
+        <TeacherView userId={userId ?? 0} userEmail={userEmail} onBack={alCerrarSesion} />
       )}
     </>
   );

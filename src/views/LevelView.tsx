@@ -8,6 +8,7 @@ import CabeceraJuego from '../components/GameHeader';
 import BarraProgreso from '../components/ProgressBar';
 import MensajeAnimo  from '../components/EncouragementMessage';
 import { ENCOURAGEMENTS_WRONG, ENCOURAGEMENTS_CORRECT, LEVEL_NAMES } from '../data/topics';
+import { obtenerEjercicios, verificarRespuesta } from '../services/api';
 import type { Topic, EncouragementType, Exercise } from '../types';
 import './LevelView.css';
 
@@ -62,15 +63,8 @@ export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onB
   useEffect(() => {
     setLoading(true);
     setErrorMsg('');
-    // Incluye el grado del usuario en la URL para obtener ejercicios específicos
-    fetch(`http://localhost:3000/api/ejercicios/${topic.id}/${levelIdx}?grade=${encodeURIComponent(userGrade)}`)
-      .then((res) => {
-        // ── IF #1: ¿Respondió bien el servidor? ──────────────
-        // res.ok es true si el código HTTP está entre 200-299
-        // Si es false (404, 500, etc.) lanzamos un error
-        if (!res.ok) throw new Error('No se pudo obtener la misión estelar.');
-        return res.json();
-      })
+    // Incluye el grado del usuario para obtener ejercicios específicos
+    obtenerEjercicios(topic.id, levelIdx, userGrade)
       .then((data: any) => {
         // data es un objeto con: { grade, tema, nivel, ejercicios: [...] }
         // Extraemos el arreglo de ejercicios
@@ -79,7 +73,7 @@ export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onB
         setLoading(false);
       })
       .catch((err) => {
-        setErrorMsg(err.message);
+        setErrorMsg(err.message || 'No se pudo obtener la misión estelar.');
         setLoading(false);
       });
   }, [topic.id, levelIdx, userGrade]);
@@ -103,19 +97,14 @@ export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onB
     try {
       const usuarioActual = localStorage.getItem('usuarioNombre') || 'Invitado';
 
-      const respuesta = await fetch('http://127.0.0.1:3000/api/progreso/verificar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          alumnoNombre:     usuarioActual,
-          userGrade:        userGrade,
-          topicId:          topic.id,
-          levelIndex:       levelIdx,
-          exerciseIndex:    currentQ,
-          respuestaUsuario: opt
-        })
+      const data = await verificarRespuesta({
+        alumnoNombre:     usuarioActual,
+        userGrade:        userGrade,
+        topicId:          topic.id,
+        levelIndex:       levelIdx,
+        exerciseIndex:    currentQ,
+        respuestaUsuario: opt,
       });
-      const data = await respuesta.json();
 
       // ── IF #3: ¿La respuesta fue correcta? ───────────────
       if (data.esCorrecto) {

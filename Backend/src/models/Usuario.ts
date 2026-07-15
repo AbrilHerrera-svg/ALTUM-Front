@@ -14,12 +14,12 @@ export class Usuario {
   private grado:      string;
   private correo:     string;
   private avatar:     string; // emoji como 👨‍🚀
-  private role:       'student' | 'teacher' | 'admin';
+  private role:       'estudiante' | 'tutor' | 'administrador';
   private contraseña: string; // NUNCA se expone en toJSON()
 
   // Constructor: se ejecuta automáticamente al hacer new Usuario(...)
   // Recibe los datos y los guarda en los atributos de la clase
-  constructor(nombre: string, grado: string, correo: string, avatar: string, id?: number, role: 'student' | 'teacher' | 'admin' = 'student', contraseña: string = '') {
+  constructor(nombre: string, grado: string, correo: string, avatar: string, id?: number, role: 'estudiante' | 'tutor' | 'administrador' = 'estudiante', contraseña: string = '') {
     this.id         = id;
     this.nombre     = nombre;
     this.correo     = correo;

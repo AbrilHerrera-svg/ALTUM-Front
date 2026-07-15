@@ -10,6 +10,7 @@
 import { useState } from 'react';
 import SpaceBackdrop from '../components/SpaceBackdrop'; // fondo animado del espacio
 import SpacePlanets  from '../components/SpacePlanets';  // planetas decorativos
+import { iniciarSesion, iniciarSesionORegistrar, listarUsuarios } from '../services/api';
 import './LoginView.css';
 
 // Opciones del selector de grado escolar
@@ -21,7 +22,7 @@ type Mode = 'login' | 'register' | 'forgot';
 // Props: lo que el componente padre (App.tsx) le pasa a este componente.
 // onLogin es una función que se ejecuta cuando el usuario inicia sesión correctamente.
 interface Props {
-  onLogin: (name: string, grade: string, email: string, avatar: string, role?: 'student' | 'teacher' | 'admin') => void;
+  onLogin: (name: string, grade: string, email: string, avatar: string, role?: 'estudiante' | 'tutor' | 'administrador') => void;
 }
 
 export default function VistaLogin({ onLogin }: Props) {
@@ -40,7 +41,7 @@ export default function VistaLogin({ onLogin }: Props) {
   const [regEmail,       setRegEmail]       = useState('');
   const [regPassword,    setRegPassword]    = useState('');
   const [regConfirm,     setRegConfirm]     = useState('');
-  const [regRole,        setRegRole]        = useState<'student' | 'teacher' | 'admin'>('student');
+  const [regRole,        setRegRole]        = useState<'estudiante' | 'tutor' | 'administrador'>('estudiante');
   const [regClassCode,   setRegClassCode]   = useState('');
   const [showRegPw,      setShowRegPw]      = useState(false);
 
@@ -86,25 +87,19 @@ export default function VistaLogin({ onLogin }: Props) {
 
     try {
       // El backend verifica correo + contraseña — el frontend ya no decide esto
-      const respuesta = await fetch('http://localhost:3000/api/usuarios/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          correo:     loginEmail.toLowerCase(),
-          contraseña: loginPassword
-        })
+      const { ok, data: datos } = await iniciarSesion({
+        correo: loginEmail.toLowerCase(),
+        contrasena: loginPassword, // OJO: sin tilde, así lo espera el backend
       });
 
-      const datos = await respuesta.json();
-
-      if (!respuesta.ok) {
+      if (!ok) {
         setError(datos.error || 'Correo o contraseña incorrectos. Intenta de nuevo.');
         return;
       }
 
       // Si el backend confirmó las credenciales, notificamos al App.tsx con sus datos
       const usuario = datos.usuario;
-      onLogin(usuario.nombre, usuario.grado, usuario.correo, usuario.avatar || '👨‍🚀', usuario.role || 'student');
+      onLogin(usuario.nombre, usuario.grado, usuario.correo, usuario.avatar || '👨‍🚀', usuario.role || 'estudiante');
     } catch (err) {
       setError('Error de red al conectar con el servidor.');
     }
@@ -120,7 +115,7 @@ export default function VistaLogin({ onLogin }: Props) {
     if (!regName || !regEmail || !regPassword || !regConfirm) {
       setError('Por favor completa todos los campos.'); return;
     }
-    if (regRole === 'student' && !regGrade) {
+    if (regRole === 'estudiante' && !regGrade) {
       setError('Los estudiantes deben seleccionar un grado.'); return;
     }
     if (regPassword.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return; }
@@ -128,31 +123,23 @@ export default function VistaLogin({ onLogin }: Props) {
 
     try {
       // 1. Verificamos primero si el correo ya está registrado
-      const respuestaGet   = await fetch('http://localhost:3000/api/usuarios');
-      const usuariosServer = await respuestaGet.json();
+      const usuariosServer = await listarUsuarios();
 
       if (usuariosServer.find((u: any) => u.correo === regEmail.toLowerCase())) {
         setError('Ya existe una cuenta con ese correo.'); return;
       }
 
       // 2. Si el correo está libre, mandamos el POST para registrar al nuevo usuario
-      const respuestaPost = await fetch('http://localhost:3000/api/usuarios', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombre:     regName.trim(),
-          grado:      regGrade,
-          correo:     regEmail.toLowerCase(),
-          contraseña: regPassword,
-          avatar:     '👨‍🚀',
-          role:       regRole,
-          classCode:  regRole === 'student' ? regClassCode.trim() : ''
-        })
+      const datos = await iniciarSesionORegistrar({
+        nombre:     regName.trim(),
+        grado:      regGrade,
+        correo:     regEmail.toLowerCase(),
+        contrasena: regPassword, // OJO: sin tilde, así lo espera el backend
+        role:       regRole,
+        classCode:  regRole === 'estudiante' ? regClassCode.trim() : '',
       });
 
-      const datos = await respuestaPost.json();
-
-      if (respuestaPost.ok) {
+      if (datos.usuario) {
         // Avisamos si el código de clase sí unió al alumno a un grupo, o si el código no existía
         if (datos.grupoUnido) {
           setSuccess(`¡Registro exitoso! Te uniste al grupo "${datos.grupoUnido}" 🎉 Redirigiendo...`);
@@ -267,9 +254,9 @@ export default function VistaLogin({ onLogin }: Props) {
           <form onSubmit={Registrarse} className="space-form">
             <div className="space-field">
               <label>¿Qué eres? *</label>
-              <select className="space-input space-select" value={regRole} onChange={e => setRegRole(e.target.value as 'student' | 'teacher' | 'admin')}>
-                <option value="student">Estudiante</option>
-                <option value="teacher">Maestro</option>
+              <select className="space-input space-select" value={regRole} onChange={e => setRegRole(e.target.value as 'estudiante' | 'tutor' | 'administrador')}>
+                <option value="estudiante">Estudiante</option>
+                <option value="tutor">Maestro</option>
               </select>
             </div>
 
@@ -279,7 +266,7 @@ export default function VistaLogin({ onLogin }: Props) {
                 value={regName} onChange={e => setRegName(e.target.value)} maxLength={40} autoComplete="name" />
             </div>
 
-            {regRole === 'student' && (
+            {regRole === 'estudiante' && (
               <>
                 <div className="space-field">
                   <label>Grado escolar *</label>

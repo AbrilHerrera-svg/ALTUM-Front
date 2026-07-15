@@ -7,9 +7,11 @@
 
 import { useState } from 'react';
 import { TOPICS_BY_GRADE, LEVEL_NAMES } from '../data/topics';
+import { crearGrupo, obtenerMisGrupos } from '../services/api';
 import './TeacherView.css';
 
 interface Props {
+  userId: number;
   userEmail: string;
   onBack: () => void;
 }
@@ -18,7 +20,7 @@ type Tab = 'grupos' | 'crear' | 'gestionar';
 type ManageTab = 'estudiantes' | 'temas' | 'ejercicios';
 const GRADES = ['4°', '5°', '6°'];
 
-export default function TeacherView({ userEmail, onBack }: Props) {
+export default function TeacherView({ userId, userEmail, onBack }: Props) {
   const [tab, setTab] = useState<Tab>('grupos');
   const [grupos, setGrupos] = useState<any[]>([]);
   const [formData, setFormData] = useState({ nombre_grupo: '', descripcion: '', grado: '4°' });
@@ -43,8 +45,7 @@ export default function TeacherView({ userEmail, onBack }: Props) {
 
   const handleFetchGrupos = async () => {
     try {
-      const response = await fetch(`http://localhost:3000/api/teacher/mis-grupos/${userEmail}`);
-      const data = await response.json();
+      const data = await obtenerMisGrupos(userId);
       setGrupos(data.data || []);
     } catch (error) {
       console.error('Error:', error);
@@ -58,11 +59,7 @@ export default function TeacherView({ userEmail, onBack }: Props) {
       return;
     }
     try {
-      await fetch('http://localhost:3000/api/teacher/grupos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, id_profesor: userEmail })
-      });
+      await crearGrupo(formData.nombre_grupo.trim(), userId);
       setMsg({ text: '✅ ¡Grupo creado!', ok: true });
       setFormData({ nombre_grupo: '', descripcion: '', grado: '4°' });
       setTimeout(() => { setMsg(null); setTab('grupos'); handleFetchGrupos(); }, 1200);
@@ -89,7 +86,7 @@ export default function TeacherView({ userEmail, onBack }: Props) {
 
       const respEstudiantes = await fetch('http://localhost:3000/api/usuarios');
       const usuarios = await respEstudiantes.json();
-      setAllStudents((usuarios || []).filter((u: any) => u.role === 'student'));
+      setAllStudents((usuarios || []).filter((u: any) => u.role === 'estudiante'));
     } catch (error) {
       console.error('Error:', error);
     }
