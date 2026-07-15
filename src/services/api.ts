@@ -77,6 +77,12 @@ export async function obtenerProgreso(nombreAlumno: string) {
   return res.json();
 }
 
+// Borra TODO el progreso del alumno en la base de datos (no solo en pantalla)
+export async function borrarProgreso(idUsuario: number) {
+  const res = await fetch(`${BASE_URL}/progreso/${idUsuario}`, { method: 'DELETE' });
+  return res.json();
+}
+
 // Se llama al TERMINAR un nivel completo (envía las estrellas ganadas)
 export async function guardarProgresoDeNivel(datos: {
   alumnoNombre: string;
@@ -109,6 +115,18 @@ export async function verificarRespuesta(datos: {
   return res.json();
 }
 
+// ── TEMAS / NIVELES (catálogo real, ya no arreglos en el frontend) ─
+
+export async function obtenerTemasPorGrado(grado: string) {
+  const res = await fetch(`${BASE_URL}/temas?grado=${encodeURIComponent(grado)}`);
+  return res.json();
+}
+
+export async function obtenerNivelesDeTema(slug: string, grado: string) {
+  const res = await fetch(`${BASE_URL}/temas/${slug}/niveles?grado=${encodeURIComponent(grado)}`);
+  return res.json();
+}
+
 // ── EJERCICIOS ────────────────────────────────────────────────
 
 export async function obtenerEjercicios(tema: string, nivel: number, grado: string) {
@@ -118,11 +136,11 @@ export async function obtenerEjercicios(tema: string, nivel: number, grado: stri
 
 // ── GRUPOS DE CLASE (TEACHER) ─────────────────────────────────
 
-export async function crearGrupo(nombreGrupo: string, idTutor: number) {
+export async function crearGrupo(nombreGrupo: string, idTutor: number, grado?: string) {
   const res = await fetch(`${BASE_URL}/teacher/grupos`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nombre_grupo: nombreGrupo, id_tutor: idTutor }),
+    body: JSON.stringify({ nombre_grupo: nombreGrupo, id_tutor: idTutor, grado }),
   });
   return res.json();
 }
@@ -134,6 +152,63 @@ export async function obtenerMisGrupos(idTutor: number) {
 
 export async function obtenerGrupoDeEstudiante(idEstudiante: number) {
   const res = await fetch(`${BASE_URL}/teacher/mi-grupo/${idEstudiante}`);
+  return res.json();
+}
+
+export async function obtenerGrupo(idGrupo: number) {
+  const res = await fetch(`${BASE_URL}/teacher/grupos/${idGrupo}`);
+  return res.json();
+}
+
+// Usado en el registro: busca un grupo por su código para autocompletar
+// el grado del alumno. Devuelve { ok: false } si el código no existe.
+export async function buscarGrupoPorCodigo(codigo: string) {
+  const res = await fetch(`${BASE_URL}/teacher/grupos/codigo/${encodeURIComponent(codigo)}`);
+  const data = await res.json();
+  return { ok: res.ok, data };
+}
+
+export async function agregarEstudianteAGrupo(idGrupo: number, idUsuario: number) {
+  const res = await fetch(`${BASE_URL}/teacher/grupos/${idGrupo}/estudiantes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_usuario: idUsuario }),
+  });
+  return res.json();
+}
+
+export async function quitarEstudianteDeGrupo(idGrupo: number, idUsuario: number) {
+  const res = await fetch(`${BASE_URL}/teacher/grupos/${idGrupo}/estudiantes/${idUsuario}`, { method: 'DELETE' });
+  return res.json();
+}
+
+// idTemaSlug es el slug del tema (ej. "numeric"), no el id numérico de MySQL
+export async function asignarTemaAGrupo(idGrupo: number, idTemaSlug: string) {
+  const res = await fetch(`${BASE_URL}/teacher/grupos/${idGrupo}/temas`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_tema: idTemaSlug }),
+  });
+  return res.json();
+}
+
+export async function quitarTemaDeGrupo(idGrupo: number, idTemaSlug: string) {
+  const res = await fetch(`${BASE_URL}/teacher/grupos/${idGrupo}/temas/${idTemaSlug}`, { method: 'DELETE' });
+  return res.json();
+}
+
+// idTemaSlug es el slug del tema, idNivel es el índice del nivel (0-7)
+export async function asignarNivelAGrupo(idGrupo: number, idTemaSlug: string, idNivel: number) {
+  const res = await fetch(`${BASE_URL}/teacher/grupos/${idGrupo}/ejercicios`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_tema: idTemaSlug, id_nivel: idNivel }),
+  });
+  return res.json();
+}
+
+export async function quitarNivelDeGrupo(idGrupo: number, idTemaSlug: string, idNivel: number) {
+  const res = await fetch(`${BASE_URL}/teacher/grupos/${idGrupo}/ejercicios/${idTemaSlug}-${idNivel}`, { method: 'DELETE' });
   return res.json();
 }
 

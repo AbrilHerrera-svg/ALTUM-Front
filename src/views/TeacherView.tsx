@@ -5,9 +5,20 @@
 // del catálogo ya existente en la app.
 // ============================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { TOPICS_BY_GRADE, LEVEL_NAMES } from '../data/topics';
-import { crearGrupo, obtenerMisGrupos } from '../services/api';
+import {
+  crearGrupo,
+  obtenerMisGrupos,
+  obtenerGrupo,
+  listarUsuarios,
+  agregarEstudianteAGrupo,
+  quitarEstudianteDeGrupo,
+  asignarTemaAGrupo,
+  quitarTemaDeGrupo,
+  asignarNivelAGrupo,
+  quitarNivelDeGrupo,
+} from '../services/api';
 import './TeacherView.css';
 
 interface Props {
@@ -52,6 +63,12 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
     }
   };
 
+  // Carga tus grupos automáticamente al entrar al panel, sin esperar
+  // a que le des clic manual a la pestaña "Mis Grupos".
+  useEffect(() => {
+    if (userId) handleFetchGrupos();
+  }, [userId]);
+
   const handleCreateGrupo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nombre_grupo.trim()) {
@@ -59,7 +76,7 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
       return;
     }
     try {
-      await crearGrupo(formData.nombre_grupo.trim(), userId);
+      await crearGrupo(formData.nombre_grupo.trim(), userId, formData.grado);
       setMsg({ text: '✅ ¡Grupo creado!', ok: true });
       setFormData({ nombre_grupo: '', descripcion: '', grado: '4°' });
       setTimeout(() => { setMsg(null); setTab('grupos'); handleFetchGrupos(); }, 1200);
@@ -78,15 +95,13 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
   // ── Abrir la pantalla de gestión de un grupo ──
   const handleManageGrupo = async (idGrupo: number) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/teacher/grupos/${idGrupo}`);
-      const data = await response.json();
+      const data = await obtenerGrupo(idGrupo);
       setSelectedGrupo(data.data);
       setManageTab('estudiantes');
       setTab('gestionar');
 
-      const respEstudiantes = await fetch('http://localhost:3000/api/usuarios');
-      const usuarios = await respEstudiantes.json();
-      setAllStudents((usuarios || []).filter((u: any) => u.role === 'estudiante'));
+      const usuarios = await listarUsuarios();
+      setAllStudents((usuarios || []).filter((u: any) => u.nombre_rol === 'estudiante'));
     } catch (error) {
       console.error('Error:', error);
     }
@@ -94,56 +109,37 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
 
   const refrescarGrupoSeleccionado = async () => {
     if (!selectedGrupo) return;
-    const response = await fetch(`http://localhost:3000/api/teacher/grupos/${selectedGrupo.id_grupo}`);
-    const data = await response.json();
+    const data = await obtenerGrupo(selectedGrupo.id_grupo);
     setSelectedGrupo(data.data);
   };
 
   // ── Estudiantes ──
   const handleAddEstudiante = async (estudiante: any) => {
-    await fetch(`http://localhost:3000/api/teacher/grupos/${selectedGrupo.id_grupo}/estudiantes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_usuario: estudiante.id, nombre: estudiante.nombre, correo: estudiante.correo })
-    });
+    await agregarEstudianteAGrupo(selectedGrupo.id_grupo, estudiante.id);
     refrescarGrupoSeleccionado();
   };
 
   const handleRemoveEstudiante = async (idUsuario: number) => {
-    await fetch(`http://localhost:3000/api/teacher/grupos/${selectedGrupo.id_grupo}/estudiantes/${idUsuario}`, {
-      method: 'DELETE'
-    });
+    await quitarEstudianteDeGrupo(selectedGrupo.id_grupo, idUsuario);
     refrescarGrupoSeleccionado();
   };
 
   // ── Temas ──
-  const handleToggleTema = async (idTema: string, nombreTema: string, yaAsignado: boolean) => {
+  const handleToggleTema = async (idTema: string, _nombreTema: string, yaAsignado: boolean) => {
     if (yaAsignado) {
-      await fetch(`http://localhost:3000/api/teacher/grupos/${selectedGrupo.id_grupo}/temas/${idTema}`, {
-        method: 'DELETE'
-      });
+      await quitarTemaDeGrupo(selectedGrupo.id_grupo, idTema);
     } else {
-      await fetch(`http://localhost:3000/api/teacher/grupos/${selectedGrupo.id_grupo}/temas`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_tema: idTema, nombre_tema: nombreTema })
-      });
+      await asignarTemaAGrupo(selectedGrupo.id_grupo, idTema);
     }
     refrescarGrupoSeleccionado();
   };
 
   // ── Ejercicios (por nivel dentro de un tema) ──
-  const handleToggleEjercicio = async (idTema: string, idNivel: number, nombreNivel: string, yaAsignado: boolean) => {
+  const handleToggleEjercicio = async (idTema: string, idNivel: number, _nombreNivel: string, yaAsignado: boolean) => {
     if (yaAsignado) {
-      await fetch(`http://localhost:3000/api/teacher/grupos/${selectedGrupo.id_grupo}/ejercicios/${idTema}-${idNivel}`, {
-        method: 'DELETE'
-      });
+      await quitarNivelDeGrupo(selectedGrupo.id_grupo, idTema, idNivel);
     } else {
-      await fetch(`http://localhost:3000/api/teacher/grupos/${selectedGrupo.id_grupo}/ejercicios`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_tema: idTema, id_nivel: idNivel, nombre_nivel: nombreNivel })
-      });
+      await asignarNivelAGrupo(selectedGrupo.id_grupo, idTema, idNivel);
     }
     refrescarGrupoSeleccionado();
   };

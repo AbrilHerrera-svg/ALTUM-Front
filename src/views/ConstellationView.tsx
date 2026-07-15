@@ -3,7 +3,8 @@
 // Muestra los 8 niveles de un tema como estrellas en el espacio.
 // ============================================================
 
-import { LEVEL_NAMES }          from '../data/topics';
+import { useState, useEffect } from 'react';
+import { obtenerNivelesDeTema } from '../services/api';
 import type { Topic, Progress } from '../types';
 import SpaceBackdrop            from '../components/SpaceBackdrop';
 import SpacePlanets             from '../components/SpacePlanets';
@@ -15,6 +16,7 @@ interface LevelStatus { state: NodeState; stars: number; }
 interface Props {
   topic:         Topic;
   progress:      Progress;
+  userGrade:     string;
   // Si el alumno pertenece a un grupo de clase, aquí llegan solo los índices de
   // nivel que su maestro asignó dentro de este tema. null = sin restricción.
   nivelesPermitidos?: number[] | null;
@@ -38,15 +40,25 @@ const STAR_POS = [
   [59, 56], [71, 28], [83, 62], [93, 38],
 ];
 
-export default function VistaConstelacion({ topic, progress, nivelesPermitidos = null, onSelectLevel, onBack }: Props) {
+export default function VistaConstelacion({ topic, progress, userGrade, nivelesPermitidos = null, onSelectLevel, onBack }: Props) {
 
-  // ?? es el operador "nullish coalescing":
-  // LEVEL_NAMES[topic.id] ?? []
-  // Si LEVEL_NAMES[topic.id] es null o undefined → usa []
-  // Si existe → usa el valor real
-  const levelNames  = LEVEL_NAMES[topic.id] ?? [];
+  // ── NOMBRES DE NIVEL (ahora vienen de MySQL, no de un arreglo) ──
+  const [levelNames, setLevelNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!topic?.id || !userGrade) return;
+
+    obtenerNivelesDeTema(topic.id, userGrade)
+      .then((res) => {
+        const filas = res.data || [];
+        // Las filas ya vienen ordenadas por `orden` (0-7) desde el backend
+        setLevelNames(filas.map((f: any) => f.nombre_nivel));
+      })
+      .catch((err) => console.error('❌ Error al obtener niveles:', err));
+  }, [topic?.id, userGrade]);
+
   const topicProg   = progress[topic.id] ?? {}; // progreso del alumno en este tema (o {} si no hay)
-  const totalNiveles = levelNames.length || 8;  // siempre 8 (|| 8 por si el arreglo estuviera vacío)
+  const totalNiveles = levelNames.length || 8;  // siempre 8 (|| 8 por si aún no cargó)
 
   // ── ÍNDICES VISIBLES ─────────────────────────────────────────
   // Si el alumno pertenece a un grupo, solo se muestran los niveles que

@@ -26,4 +26,7 @@ router.post('/guardar',   (req, res) => controlador.guardarProgreso(req, res));
 // Usa el mismo método que /guardar porque el controller distingue el caso por el body
 router.post('/verificar', (req, res) => controlador.guardarProgreso(req, res));
 
+// DELETE: borra TODO el progreso guardado de un alumno (botón "Borrar mi progreso")
+router.delete('/:idUsuario', (req, res) => controlador.borrarProgreso(req, res));
+
 export default router;

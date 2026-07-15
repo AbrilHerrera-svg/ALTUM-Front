@@ -6,6 +6,7 @@ const controller = new TeacherController(); // ← esto faltaba: los métodos so
 
 // Gestión de grupos
 router.post('/grupos', (req, res) => controller.createGrupo(req, res));
+router.get('/grupos/codigo/:codigo', (req, res) => controller.getGrupoPorCodigo(req, res)); // ← antes de /grupos/:id
 router.get('/grupos/:id', (req, res) => controller.getGrupo(req, res));
 router.get('/mis-grupos/:id_tutor', (req, res) => controller.getMisGrupos(req, res));
 router.get('/mi-grupo/:id_estudiante', (req, res) => controller.getGrupoDeEstudiante(req, res));

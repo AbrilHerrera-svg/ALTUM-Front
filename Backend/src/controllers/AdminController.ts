@@ -1,22 +1,26 @@
-import { Request, Response } from 'express';
+// ============================================================
+// AdminController.ts — "recepcionista" del panel de administrador.
+// Ya NO guarda nada en un arreglo en RAM: todo vive en MySQL a
+// través de AdminManager, sobre las mismas tablas del catálogo real.
+// ============================================================
 
-// "Base de datos" en memoria — se borra al reiniciar el servidor.
-// Cada ejercicio creado por el admin vive aquí como un objeto plano.
-let ejercicios: any[] = [];
-let contadorId = 1;
+import { Request, Response } from 'express';
+import { AdminManager } from '../services/AdminManager';
 
 export class AdminController {
+
   // GET /api/admin/ejercicios - Listar todos los ejercicios
-  static getEjercicios(req: Request, res: Response) {
+  static async getEjercicios(req: Request, res: Response) {
     try {
-      res.json({ message: 'GET todos los ejercicios', data: ejercicios });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al obtener ejercicios' });
+      const data = await AdminManager.listarEjercicios();
+      res.json({ message: 'GET todos los ejercicios', data });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al obtener ejercicios', detalle: error.message });
     }
   }
 
   // POST /api/admin/ejercicios - Crear nuevo ejercicio
-  static createEjercicio(req: Request, res: Response) {
+  static async createEjercicio(req: Request, res: Response) {
     try {
       const { descripcion, tip, id_tema, id_nivel, grado, options, correct } = req.body;
 
@@ -24,6 +28,10 @@ export class AdminController {
         res.status(400).json({ error: 'Falta el campo obligatorio: descripcion' });
         return;
       }
+      if (!id_tema || id_nivel === undefined || id_nivel === '' || !grado) {
+        res.status(400).json({ error: 'Faltan id_tema, id_nivel o grado' });
+        return;
+      }
 
       const error = AdminController.validarOpciones(options, correct);
       if (error) {
@@ -31,27 +39,23 @@ export class AdminController {
         return;
       }
 
-      const nuevo = { id: contadorId++, descripcion, tip, id_tema, id_nivel, grado, options, correct };
-      ejercicios.push(nuevo);
-
+      const nuevo = await AdminManager.crearEjercicio({ descripcion, tip, id_tema, id_nivel, grado, options, correct });
       res.status(201).json({ message: 'Ejercicio creado', data: nuevo });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al crear ejercicio' });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al crear ejercicio', detalle: error.message });
     }
   }
 
   // PUT /api/admin/ejercicios/:id - Editar ejercicio
-  static updateEjercicio(req: Request, res: Response) {
+  static async updateEjercicio(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const indice = ejercicios.findIndex(e => e.id === Number(id));
+      const { descripcion, tip, id_tema, id_nivel, grado, options, correct } = req.body;
 
-      if (indice === -1) {
-        res.status(404).json({ error: 'Ejercicio no encontrado' });
+      if (!id_tema || id_nivel === undefined || id_nivel === '' || !grado) {
+        res.status(400).json({ error: 'Faltan id_tema, id_nivel o grado' });
         return;
       }
-
-      const { descripcion, tip, id_tema, id_nivel, grado, options, correct } = req.body;
 
       const error = AdminController.validarOpciones(options, correct);
       if (error) {
@@ -59,11 +63,10 @@ export class AdminController {
         return;
       }
 
-      ejercicios[indice] = { ...ejercicios[indice], descripcion, tip, id_tema, id_nivel, grado, options, correct };
-
-      res.json({ message: `Ejercicio ${id} actualizado`, data: ejercicios[indice] });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al actualizar ejercicio' });
+      const actualizado = await AdminManager.actualizarEjercicio(Number(id), { descripcion, tip, id_tema, id_nivel, grado, options, correct });
+      res.json({ message: `Ejercicio ${id} actualizado`, data: actualizado });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al actualizar ejercicio', detalle: error.message });
     }
   }
 
@@ -79,20 +82,13 @@ export class AdminController {
   }
 
   // DELETE /api/admin/ejercicios/:id - Eliminar ejercicio
-  static deleteEjercicio(req: Request, res: Response) {
+  static async deleteEjercicio(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const indice = ejercicios.findIndex(e => e.id === Number(id));
-
-      if (indice === -1) {
-        res.status(404).json({ error: 'Ejercicio no encontrado' });
-        return;
-      }
-
-      ejercicios.splice(indice, 1);
+      await AdminManager.eliminarEjercicio(Number(id));
       res.json({ message: `Ejercicio ${id} eliminado` });
-    } catch (error) {
-      res.status(500).json({ error: 'Error al eliminar ejercicio' });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al eliminar ejercicio', detalle: error.message });
     }
   }
 }

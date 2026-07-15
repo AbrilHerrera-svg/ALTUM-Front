@@ -7,10 +7,10 @@
 //   'forgot'  → formulario para recuperar contraseña
 // ============================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import SpaceBackdrop from '../components/SpaceBackdrop'; // fondo animado del espacio
 import SpacePlanets  from '../components/SpacePlanets';  // planetas decorativos
-import { iniciarSesion, iniciarSesionORegistrar, listarUsuarios } from '../services/api';
+import { iniciarSesion, iniciarSesionORegistrar, listarUsuarios, buscarGrupoPorCodigo } from '../services/api';
 import './LoginView.css';
 
 // Opciones del selector de grado escolar
@@ -44,6 +44,35 @@ export default function VistaLogin({ onLogin }: Props) {
   const [regRole,        setRegRole]        = useState<'estudiante' | 'tutor' | 'administrador'>('estudiante');
   const [regClassCode,   setRegClassCode]   = useState('');
   const [showRegPw,      setShowRegPw]      = useState(false);
+
+  // ── BÚSQUEDA AUTOMÁTICA DE GRUPO POR CÓDIGO ─────────────────
+  // Cuando el código está completo (6 caracteres), buscamos el grupo y
+  // autocompletamos + bloqueamos el grado para que coincida con el grupo.
+  const [grupoEncontrado, setGrupoEncontrado] = useState<{ nombre_grupo: string; grado: string } | null>(null);
+  const [buscandoGrupo,   setBuscandoGrupo]   = useState(false);
+
+  useEffect(() => {
+    const codigo = regClassCode.trim().toUpperCase();
+
+    if (codigo.length !== 6) {
+      setGrupoEncontrado(null);
+      return;
+    }
+
+    setBuscandoGrupo(true);
+    const timer = setTimeout(async () => {
+      const { ok, data } = await buscarGrupoPorCodigo(codigo);
+      if (ok && data.data) {
+        setGrupoEncontrado(data.data);
+        setRegGrade(data.data.grado || '');
+      } else {
+        setGrupoEncontrado(null);
+      }
+      setBuscandoGrupo(false);
+    }, 400); // pequeño debounce para no buscar en cada tecla
+
+    return () => clearTimeout(timer);
+  }, [regClassCode]);
 
   // ── ESTADOS DEL FORMULARIO DE RECUPERAR CONTRASEÑA ──────────
   const [forgotEmail, setForgotEmail] = useState('');
@@ -99,7 +128,7 @@ export default function VistaLogin({ onLogin }: Props) {
 
       // Si el backend confirmó las credenciales, notificamos al App.tsx con sus datos
       const usuario = datos.usuario;
-      onLogin(usuario.nombre, usuario.grado, usuario.correo, usuario.avatar || '👨‍🚀', usuario.role || 'estudiante');
+      onLogin(usuario.nombre, usuario.grado, usuario.correo, usuario.avatar || '👨‍🚀', usuario.nombre_rol || 'estudiante');
     } catch (err) {
       setError('Error de red al conectar con el servidor.');
     }
@@ -115,7 +144,9 @@ export default function VistaLogin({ onLogin }: Props) {
     if (!regName || !regEmail || !regPassword || !regConfirm) {
       setError('Por favor completa todos los campos.'); return;
     }
-    if (regRole === 'estudiante' && !regGrade) {
+    // El grado solo es obligatorio si NO trae código de clase —
+    // si trae código, el grado lo determina el grupo (el backend lo resuelve).
+    if (regRole === 'estudiante' && !regGrade && !regClassCode.trim()) {
       setError('Los estudiantes deben seleccionar un grado.'); return;
     }
     if (regPassword.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return; }
@@ -270,19 +301,45 @@ export default function VistaLogin({ onLogin }: Props) {
               <>
                 <div className="space-field">
                   <label>Grado escolar *</label>
-                  <select className="space-input space-select" value={regGrade} onChange={e => setRegGrade(e.target.value)}>
+                  <select
+                    className="space-input space-select"
+                    value={regGrade}
+                    onChange={e => setRegGrade(e.target.value)}
+                    disabled={!!grupoEncontrado}
+                    style={grupoEncontrado ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+                  >
                     <option value="">Selecciona tu grado</option>
                     {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
+                  {grupoEncontrado && (
+                    <small style={{ color: '#7c3aed', marginTop: '0.25rem', display: 'block' }}>
+                      🔒 Grado fijado por tu grupo de clase
+                    </small>
+                  )}
                 </div>
 
                 <div className="space-field">
                   <label>Código de clase (opcional)</label>
                   <input type="text" className="space-input" placeholder="Código de tu maestro (si tienes)"
                     value={regClassCode} onChange={e => setRegClassCode(e.target.value)} maxLength={20} />
-                  <small style={{ color: '#999', marginTop: '0.25rem', display: 'block' }}>
-                    Déjalo en blanco si no tienes clase asignada
-                  </small>
+                  {buscandoGrupo && (
+                    <small style={{ color: '#999', marginTop: '0.25rem', display: 'block' }}>🔎 Buscando grupo...</small>
+                  )}
+                  {!buscandoGrupo && grupoEncontrado && (
+                    <small style={{ color: '#16a34a', marginTop: '0.25rem', display: 'block' }}>
+                      ✅ Te unirás a "{grupoEncontrado.nombre_grupo}" ({grupoEncontrado.grado})
+                    </small>
+                  )}
+                  {!buscandoGrupo && !grupoEncontrado && regClassCode.trim().length === 6 && (
+                    <small style={{ color: '#ef4444', marginTop: '0.25rem', display: 'block' }}>
+                      ⚠️ No encontramos ese código, revísalo
+                    </small>
+                  )}
+                  {!regClassCode && (
+                    <small style={{ color: '#999', marginTop: '0.25rem', display: 'block' }}>
+                      Déjalo en blanco si no tienes clase asignada
+                    </small>
+                  )}
                 </div>
               </>
             )}

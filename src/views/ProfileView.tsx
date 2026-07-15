@@ -57,17 +57,19 @@ interface Props {
   userAvatar:      string;
   progress:        Progress;
   shopData:        ShopData;                      // accesorios comprados/puestos
+  nombreGrupo?:    string | null;                 // si no es null, el alumno pertenece a un grupo
   onBack:          () => void;                    // volver al dashboard
   onUpdate:        (u: ProfileUpdate) => void;    // guardar cambios en App.tsx y backend
-  onLogout:        () => void;                    // cerrar sesión / eliminar cuenta
-  onResetProgress: () => void;                    // borrar el progreso localmente
+  onLogout:        () => void;                    // cerrar sesión (NO borra la cuenta)
+  onDeleteAccount: () => void;                    // borrar la cuenta permanentemente
+  onResetProgress: () => void;                    // borrar el progreso (local Y en la base de datos)
   onGoShop:        () => void;                    // ir a la pantalla de la tienda
 }
 
 // Los dos modos de la pantalla
 type Tab = 'profile' | 'password';
 
-export default function VistaPerfil({ userId, userName, userGrade, userEmail, userAvatar, progress, onBack, onUpdate, onLogout, onResetProgress }: Props) {
+export default function VistaPerfil({ userId, userName, userGrade, userEmail, userAvatar, progress, nombreGrupo = null, onBack, onUpdate, onLogout, onDeleteAccount, onResetProgress }: Props) {
 
   // ── ESTADO DE PESTAÑAS ───────────────────────────────────────
   const [tab, setTab] = useState<Tab>('profile'); // empieza en la pestaña de perfil
@@ -89,6 +91,7 @@ export default function VistaPerfil({ userId, userName, userGrade, userEmail, us
   // ── ESTADO DE CONFIRMACIÓN DE BORRADO ───────────────────────
   // Cuando es true, muestra el mensaje "¿Estás seguro?" antes de borrar
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // ── ESTADO DEL PORTAL DE CONSULTA ───────────────────────────
   // Un pequeño panel de ayuda que se muestra/oculta con un botón
@@ -241,11 +244,22 @@ export default function VistaPerfil({ userId, userName, userGrade, userEmail, us
             {/* Botones de grado — el seleccionado tiene clase 'selected' */}
             <div className="pv-grade-opts">
               {GRADES.map(g => (
-                <button key={g} className={`pv-grade-btn ${grade === g ? 'selected' : ''}`} onClick={() => setGrade(g)}>
+                <button
+                  key={g}
+                  className={`pv-grade-btn ${grade === g ? 'selected' : ''}`}
+                  onClick={() => !nombreGrupo && setGrade(g)}
+                  disabled={!!nombreGrupo}
+                  style={nombreGrupo ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                >
                   {g}
                 </button>
               ))}
             </div>
+            {nombreGrupo && (
+              <small style={{ color: '#7c3aed', display: 'block', marginTop: '0.25rem' }}>
+                🔒 Tu grado lo define tu grupo "{nombreGrupo}" — pídele a tu maestro que te cambie de grupo si es incorrecto.
+              </small>
+            )}
 
             {/* Mensaje de éxito o error al guardar */}
             {profileMsg && <p className="pv-msg">{profileMsg}</p>}
@@ -291,8 +305,21 @@ export default function VistaPerfil({ userId, userName, userGrade, userEmail, us
               </div>
             </div>
           )}
-          {/* onLogout en App.tsx hace el DELETE al backend y luego cierra sesión */}
+          {/* Cerrar sesión: acción normal, sin riesgo, sin confirmación */}
           <button className="pv-logout-btn" onClick={onLogout}>↩ Cerrar sesión</button>
+
+          {/* Eliminar cuenta: PERMANENTE, requiere confirmación explícita aparte */}
+          {!confirmDelete ? (
+            <button className="pv-danger-btn" onClick={() => setConfirmDelete(true)}>❌ Eliminar mi cuenta</button>
+          ) : (
+            <div className="pv-confirm-box">
+              <p className="pv-confirm-text">⚠️ Esto borra tu cuenta PERMANENTEMENTE, no se puede deshacer.</p>
+              <div className="pv-confirm-row">
+                <button className="pv-confirm-yes" onClick={onDeleteAccount}>Sí, eliminar mi cuenta</button>
+                <button className="pv-confirm-no" onClick={() => setConfirmDelete(false)}>Cancelar</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

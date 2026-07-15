@@ -1,15 +1,11 @@
 // ============================================================
-// ProgresoController.ts — refactorizado al patrón "recepcionista"
-// (igual que UsuarioController/TeacherController). Ya NO guarda nada
-// en un objeto en RAM: todo vive en MySQL vía ProgresoManager.
-//
-// Mantenemos el mismo "alumnoNombre" que ya usa el frontend en
-// services/api.ts, para no tener que tocar las vistas: aquí adentro
-// lo traducimos a id_usuario antes de hablar con la base de datos.
+// ProgresoController.ts — patrón "recepcionista". Todo vive en MySQL:
+// el progreso vía ProgresoManager, y ahora también la verificación
+// de respuestas vía CatalogoManager (ya no el catálogo hardcodeado).
 // ============================================================
 
 import { Request, Response } from 'express';
-import { EjercicioController } from './EjercicioController';
+import { CatalogoManager } from '../services/CatalogoManager';
 import { ProgresoManager } from '../services/ProgresoManager';
 import { UsuarioManager } from '../services/UsuarioManager';
 
@@ -27,7 +23,6 @@ export class ProgresoController {
 
       const usuario = await UsuarioManager.buscarPorNombre(alumnoNombre);
       if (!usuario) {
-        // Igual que antes: si el alumno no existe todavía, no es un error fatal.
         res.status(200).json({});
         return;
       }
@@ -70,24 +65,33 @@ export class ProgresoController {
         return;
       }
 
-      // ── CASO B: verificar si la respuesta es correcta (sin tocar DB) ──
+      // ── CASO B: verificar si la respuesta es correcta (consulta MySQL) ──
       const exerciseIdx = Number(exerciseIndex);
-      const catalogoPorGrado: any = EjercicioController.catalogoEjerciciosPorGrado;
       const normalizedGrade = this.normalizeGrade(userGrade);
-      const catalogo: any = catalogoPorGrado[normalizedGrade];
+      const ejerciciosDelNivel = await CatalogoManager.obtenerEjerciciosDeNivel(topicId, normalizedGrade, levelIdx);
       let esCorrecto = false;
 
-      if (catalogo && catalogo[topicId] && catalogo[topicId][levelIdx]) {
-        const ejercicioReal = catalogo[topicId][levelIdx][exerciseIdx];
-        if (ejercicioReal && respuestaUsuario) {
-          const limpiar = (txt: string) => txt.trim().toLowerCase().replace(/\s+/g, '');
-          esCorrecto = limpiar(ejercicioReal.getCorrect()) === limpiar(respuestaUsuario);
-        }
+      if (ejerciciosDelNivel && ejerciciosDelNivel[exerciseIdx] && respuestaUsuario) {
+        const limpiar = (txt: string) => txt.trim().toLowerCase().replace(/\s+/g, '');
+        esCorrecto = limpiar(ejerciciosDelNivel[exerciseIdx].correct) === limpiar(respuestaUsuario);
       }
 
       res.status(200).json({ esCorrecto });
     } catch (error: any) {
       res.status(500).json({ error: 'Error al procesar el progreso', detalle: error.message });
+    }
+  }
+
+  // ── BORRAR PROGRESO → DELETE /api/progreso/:idUsuario ────────
+  // Botón "Borrar mi progreso" del perfil. Antes solo limpiaba la
+  // pantalla; ahora sí borra las filas reales en progreso_catalogo.
+  public async borrarProgreso(req: Request, res: Response): Promise<void> {
+    try {
+      const { idUsuario } = req.params;
+      await ProgresoManager.borrarProgreso(Number(idUsuario));
+      res.status(200).json({ mensaje: 'Progreso borrado' });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al borrar el progreso', detalle: error.message });
     }
   }
 

@@ -33,9 +33,34 @@ import {
   actualizarPerfil as apiActualizarPerfil,
   eliminarCuenta as apiEliminarCuenta,
   obtenerProgreso,
+  borrarProgreso as apiBorrarProgreso,
   guardarProgresoDeNivel,
   obtenerGrupoDeEstudiante,
 } from './services/api';
+
+// Guarda la sesión activa en el navegador para que sobreviva a un F5.
+// Solo guardamos identidad — el progreso, grupo, etc. se vuelven a pedir
+// al backend cada vez (así siempre está fresco, no desactualizado).
+const CLAVE_SESION = 'altum_session';
+
+interface SesionGuardada {
+  userId: number;
+  userName: string;
+  userGrade: string;
+  userEmail: string;
+  userAvatar: string;
+  userRole: 'estudiante' | 'tutor' | 'administrador';
+}
+
+function guardarSesion(s: SesionGuardada) {
+  localStorage.setItem(CLAVE_SESION, JSON.stringify(s));
+}
+function leerSesion(): SesionGuardada | null {
+  try { return JSON.parse(localStorage.getItem(CLAVE_SESION) || 'null'); } catch { return null; }
+}
+function borrarSesion() {
+  localStorage.removeItem(CLAVE_SESION);
+}
 
 // Guarda la tienda de cada alumno en el navegador, separado por correo
 const CLAVE_TIENDA = 'altum_shop';
@@ -100,6 +125,44 @@ export default function Aplicacion() {
   // (con los temas y ejercicios que su maestro dejó habilitados).
   // null = no pertenece a ningún grupo → ve el catálogo completo, sin restricciones.
   const [misGrupo, setMisGrupo] = useState<any | null>(null);
+
+  // ── RESTAURAR SESIÓN AL RECARGAR LA PÁGINA (F5) ───────────────
+  // Se ejecuta UNA sola vez al montar la app. Si hay una sesión guardada
+  // en localStorage, la restauramos en vez de mandar a login.
+  //
+  // sesionCargando evita el "parpadeo" de ver la pantalla de login
+  // por una fracción de segundo antes de saltar a la pantalla real.
+  const [sesionCargando, setSesionCargando] = useState(true);
+
+  useEffect(() => {
+    const sesion = leerSesion();
+    if (!sesion) {
+      setSesionCargando(false); // no hay sesión guardada → login normal
+      return;
+    }
+
+    setUserId(sesion.userId);
+    setUserName(sesion.userName);
+    setUserGrade(sesion.userGrade);
+    setUserEmail(sesion.userEmail);
+    setUserAvatar(sesion.userAvatar);
+    setUserRole(sesion.userRole);
+
+    if (sesion.userRole === 'estudiante') {
+      setShopData(obtenerTiendaDe(sesion.userEmail));
+      obtenerGrupoDeEstudiante(sesion.userId)
+        .then(dataGrupo => setMisGrupo(dataGrupo.data || null))
+        .catch(() => setMisGrupo(null));
+      setView('dashboard');
+    } else if (sesion.userRole === 'tutor') {
+      setView('teacher');
+    } else if (sesion.userRole === 'administrador') {
+      setView('admin');
+    }
+
+    setSesionCargando(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // [] = solo al montar, una vez
 
   // ── SINCRONIZACIÓN AUTOMÁTICA DEL PROGRESO ───────────────────
   // useEffect se ejecuta automáticamente cada vez que cambia userName o view.
@@ -166,6 +229,16 @@ export default function Aplicacion() {
         } else {
           setView('dashboard');
         }
+
+        // Guardamos la sesión para que sobreviva a un F5 / recargar la página
+        guardarSesion({
+          userId: datos.usuario.id_usuario ?? datos.usuario.id,
+          userName: datos.usuario.nombre,
+          userGrade: datos.usuario.grado ?? grade,
+          userEmail: datos.usuario.correo,
+          userAvatar: datos.usuario.avatar || avatar || '👨‍🚀',
+          userRole: role,
+        });
       }
     } catch (error) {
       console.error('Error de red al intentar registrar usuario:', error);
@@ -191,6 +264,16 @@ export default function Aplicacion() {
         setUserName(datos.usuario.nombre);
         setUserGrade(datos.usuario.grado);
         setUserAvatar(datos.usuario.avatar);
+
+        // Y la sesión guardada, para que un F5 después de editar no te muestre lo viejo
+        guardarSesion({
+          userId,
+          userName: datos.usuario.nombre,
+          userGrade: datos.usuario.grado,
+          userEmail,
+          userAvatar: datos.usuario.avatar,
+          userRole,
+        });
       } else {
         console.error('Error al actualizar en BackEnd:', datos.error);
       }
@@ -268,6 +351,7 @@ export default function Aplicacion() {
   };
 
   const alCerrarSesion = () => {
+    borrarSesion(); // limpia la sesión guardada para que el próximo F5 sí mande a login
     // Limpiamos TODOS los estados — como si la app volviera a arrancar
     setUserId(null);
     setUserName('');
@@ -282,8 +366,14 @@ export default function Aplicacion() {
     setView('login');
   };
 
-  const alReiniciarProgreso = () => {
-    setProgress({}); // borra el progreso visualmente (el backend no se toca)
+  const alReiniciarProgreso = async () => {
+    setProgress({}); // borra visualmente de inmediato, para que se sienta instantáneo
+    if (!userId) return;
+    try {
+      await apiBorrarProgreso(userId); // y ahora también borra las filas reales en MySQL
+    } catch (error) {
+      console.error('Error al borrar el progreso en la base de datos:', error);
+    }
   };
 
   // ── COMPRAR UN ACCESORIO DE LA TIENDA ────────────────────────
@@ -315,12 +405,21 @@ export default function Aplicacion() {
     ? misGrupo.temas.map((t: any) => t.id_tema)
     : null;
 
-  // Dentro de un tema, solo puede jugar los niveles que el maestro asignó como ejercicio.
-  const nivelesPermitidos: number[] | null = (misGrupo && selectedTopic)
-    ? misGrupo.ejercicios
-        .filter((e: any) => e.id_tema === selectedTopic.id)
-        .map((e: any) => Number(e.id_nivel))
+  // Dentro de un tema, si el maestro curó niveles específicos (pestaña
+  // "Ejercicios") solo se muestran esos. Si NO curó ninguno para ese tema
+  // en particular, se muestran los 8 completos (mejor default: no vacío).
+  const ejerciciosDelTemaActual = (misGrupo?.ejercicios || [])
+    .filter((e: any) => typeof e.id_ejercicio === 'string' && e.id_ejercicio.startsWith(`${selectedTopic?.id}-`));
+
+  const nivelesPermitidos: number[] | null = (misGrupo && selectedTopic && ejerciciosDelTemaActual.length > 0)
+    ? ejerciciosDelTemaActual.map((e: any) => Number(e.id_ejercicio.split('-').pop()))
     : null;
+
+  // Mientras se revisa si hay una sesión guardada, mostramos esto en vez
+  // del login — pantalla en blanco simple, como un recargo normal.
+  if (sesionCargando) {
+    return <div style={{ minHeight: '100vh', background: '#2e1065' }} />;
+  }
 
   // ── RENDERIZADO ──────────────────────────────────────────────
   // El return decide QUÉ pantalla mostrar según el estado "view".
@@ -341,6 +440,7 @@ export default function Aplicacion() {
           userAvatar={userAvatar}
           progress={progress}
           temasPermitidos={temasPermitidos}
+          ejerciciosDelGrupo={misGrupo?.ejercicios || []}
           onSelectTopic={alSeleccionarTema}
           onProfile={() => setView('profile')}
           onLogout={alCerrarSesion}
@@ -357,9 +457,11 @@ export default function Aplicacion() {
           userAvatar={userAvatar}
           progress={progress}
           shopData={shopData}
+          nombreGrupo={misGrupo?.nombre_grupo || null}
           onBack={() => setView('dashboard')}
           onUpdate={alActualizarPerfil}
-          onLogout={alEliminarCuenta}
+          onLogout={alCerrarSesion}
+          onDeleteAccount={alEliminarCuenta}
           onResetProgress={alReiniciarProgreso}
           onGoShop={() => setView('shop')}
         />
@@ -383,6 +485,7 @@ export default function Aplicacion() {
         <VistaConstelacion
           topic={selectedTopic}
           progress={progress}
+          userGrade={userGrade}
           nivelesPermitidos={nivelesPermitidos}
           onSelectLevel={alSeleccionarNivel}
           onBack={() => setView('dashboard')}

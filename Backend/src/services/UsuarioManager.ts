@@ -105,22 +105,30 @@ export class UsuarioManager {
     const id_usuario = result.insertId;
 
     if (datos.role === 'estudiante') {
-      let id_grado: number | null = null;
-      if (datos.grado) {
-        const [gradoRows] = await pool.query<RowDataPacket[]>(
-          'SELECT id_grado FROM grados WHERE nombre_grado = ?',
-          [datos.grado]
-        );
-        id_grado = gradoRows[0]?.id_grado ?? null;
-      }
-
+      // Si trae un código de clase válido, el GRADO DEL GRUPO manda sobre
+      // lo que el alumno haya escrito en el formulario — así el catálogo
+      // de temas que ve siempre coincide con lo que asignó su maestro.
       let id_grupo: number | null = null;
+      let gradoEfectivo = datos.grado;
+
       if (datos.classCode && datos.classCode.trim()) {
         const [grupoRows] = await pool.query<RowDataPacket[]>(
-          'SELECT id_grupo FROM grupos WHERE codigo_grupo = ?',
+          'SELECT id_grupo, grado FROM grupos WHERE codigo_grupo = ?',
           [datos.classCode.trim().toUpperCase()]
         );
-        id_grupo = grupoRows[0]?.id_grupo ?? null;
+        if (grupoRows.length > 0) {
+          id_grupo = grupoRows[0].id_grupo;
+          if (grupoRows[0].grado) gradoEfectivo = grupoRows[0].grado;
+        }
+      }
+
+      let id_grado: number | null = null;
+      if (gradoEfectivo) {
+        const [gradoRows] = await pool.query<RowDataPacket[]>(
+          'SELECT id_grado FROM grados WHERE nombre_grado = ?',
+          [gradoEfectivo]
+        );
+        id_grado = gradoRows[0]?.id_grado ?? null;
       }
 
       await pool.query(
@@ -145,19 +153,29 @@ export class UsuarioManager {
       [datos.nombre, datos.correo, datos.avatar || null, id]
     );
 
-    // Si mandaron grado, actualiza estudiantes.id_grado (solo aplica si es estudiante;
-    // si el usuario no tiene fila en `estudiantes`, este UPDATE simplemente no afecta filas).
+    // Si mandaron grado, actualiza estudiantes.id_grado — PERO solo si el
+    // alumno NO pertenece a un grupo. Si pertenece, el grado lo manda el
+    // grupo (evita que cambie el grado desde el perfil y se desincronice
+    // de los temas que su maestro le asignó).
     if (datos.grado) {
-      const [gradoRows] = await pool.query<RowDataPacket[]>(
-        'SELECT id_grado FROM grados WHERE nombre_grado = ?',
-        [datos.grado]
+      const [estudianteRows] = await pool.query<RowDataPacket[]>(
+        'SELECT id_grupo FROM estudiantes WHERE id_usuario = ?',
+        [id]
       );
-      const id_grado = gradoRows[0]?.id_grado ?? null;
-      if (id_grado !== null) {
-        await pool.query(
-          'UPDATE estudiantes SET id_grado = ? WHERE id_usuario = ?',
-          [id_grado, id]
+      const perteneceAGrupo = estudianteRows.length > 0 && estudianteRows[0].id_grupo !== null;
+
+      if (!perteneceAGrupo) {
+        const [gradoRows] = await pool.query<RowDataPacket[]>(
+          'SELECT id_grado FROM grados WHERE nombre_grado = ?',
+          [datos.grado]
         );
+        const id_grado = gradoRows[0]?.id_grado ?? null;
+        if (id_grado !== null) {
+          await pool.query(
+            'UPDATE estudiantes SET id_grado = ? WHERE id_usuario = ?',
+            [id_grado, id]
+          );
+        }
       }
     }
 

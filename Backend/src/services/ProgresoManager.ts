@@ -64,4 +64,9 @@ export class ProgresoManager {
     }
     return temaCompleto;
   }
+
+  // Borra TODO el progreso guardado de un alumno (botón "Borrar mi progreso").
+  public static async borrarProgreso(id_usuario: number): Promise<void> {
+    await pool.query('DELETE FROM progreso_catalogo WHERE id_usuario = ?', [id_usuario]);
+  }
 }
