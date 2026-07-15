@@ -3,7 +3,7 @@
 // Aquí el alumno responde preguntas de opción múltiple.
 // ============================================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import CabeceraJuego from '../components/GameHeader';
 import BarraProgreso from '../components/ProgressBar';
 import MensajeAnimo  from '../components/EncouragementMessage';
@@ -30,6 +30,22 @@ const LETTER_COLORS = ['#7c3aed', '#0891b2', '#d97706', '#db2777'];
 // Ejemplo con arreglo de 8 frases: Math.floor(0.65 * 8) = Math.floor(5.2) = 5
 function elegir<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 
+// Revuelve un arreglo (Fisher-Yates), sin modificar el original
+function revolver<T>(arr: T[]): T[] {
+  const copia = [...arr];
+  for (let i = copia.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copia[i], copia[j]] = [copia[j], copia[i]];
+  }
+  return copia;
+}
+
+// Empareja cada pregunta con su posición ORIGINAL en la lista que manda el
+// backend (ordenada por id_ejercicio) — esa posición es la que hay que
+// mandarle a verificarRespuesta(), sin importar en qué orden se muestre
+// en pantalla (que ahora es aleatorio).
+interface ExerciseConIndice { exercise: Exercise; originalIndex: number; }
+
 interface EncouragementState { message: string; type: EncouragementType; }
 
 interface Props {
@@ -42,10 +58,12 @@ interface Props {
 
 export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onBack }: Props) {
 
-  // exercises es un ARREGLO de objetos Exercise.
-  // Empieza vacío [] y se llena con las 4 preguntas del backend.
-  // Estructura: [ {question:'...', options:[...], correct:'...', tip:'...'}, ... ]
-  const [exercises,     setExercises]     = useState<Exercise[]>([]);
+  // exercises es un ARREGLO de preguntas, cada una emparejada con su
+  // posición ORIGINAL en la base de datos. Se revuelve UNA SOLA VEZ al
+  // cargar el nivel (no en cada pregunta), así el orden de las preguntas
+  // es distinto cada vez que entras, tanto para alumnos autónomos como
+  // los que están en grupo — es lo mismo LevelView.tsx para todos.
+  const [exercises,     setExercises]     = useState<ExerciseConIndice[]>([]);
   const [loading,       setLoading]       = useState(true);
   const [errorMsg,      setErrorMsg]      = useState('');
   const [currentQ,      setCurrentQ]      = useState(0);           // índice de pregunta actual (0-3)
@@ -67,9 +85,14 @@ export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onB
     obtenerEjercicios(topic.id, levelIdx, userGrade)
       .then((data: any) => {
         // data es un objeto con: { grade, tema, nivel, ejercicios: [...] }
-        // Extraemos el arreglo de ejercicios
-        const ejercicios = data.ejercicios || data;
-        setExercises(ejercicios);
+        // Extraemos el arreglo de ejercicios (en el orden del backend)
+        const todos: Exercise[] = data.ejercicios || data;
+
+        // Emparejamos cada pregunta con su índice original ANTES de
+        // revolver, para no perder la referencia correcta.
+        const conIndices: ExerciseConIndice[] = todos.map((ex, i) => ({ exercise: ex, originalIndex: i }));
+
+        setExercises(revolver(conIndices));
         setLoading(false);
       })
       .catch((err) => {
@@ -79,8 +102,20 @@ export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onB
   }, [topic.id, levelIdx, userGrade]);
 
   // Acceso directo a la pregunta actual del arreglo usando el índice
-  // exercises[0] = primera pregunta, exercises[1] = segunda, etc.
-  const exercise = exercises[currentQ];
+  // exercises[0] = primera pregunta (ya revuelta), exercises[1] = segunda, etc.
+  const exercise = exercises[currentQ]?.exercise;
+
+  // ── ORDEN ALEATORIO DE LAS RESPUESTAS ────────────────────────
+  // Se revuelve cada vez que cambia la pregunta actual (currentQ), no en
+  // cada render — así el orden se queda quieto mientras respondes esta
+  // pregunta, pero cambia la próxima vez que entres (o avances). No afecta
+  // en nada a la base de datos: "correct" se sigue comparando por TEXTO,
+  // no por posición, así que el admin no tiene que hacer nada distinto.
+  const shuffledOptions = useMemo(() => {
+    if (!exercise) return [];
+    return revolver(exercise.options);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQ, exercise?.question]);
 
   // ── FUNCIÓN: PROCESAR RESPUESTA DEL ALUMNO ──────────────────
   const Responder = useCallback(async (opt: string) => {
@@ -102,7 +137,7 @@ export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onB
         userGrade:        userGrade,
         topicId:          topic.id,
         levelIndex:       levelIdx,
-        exerciseIndex:    currentQ,
+        exerciseIndex:    exercises[currentQ]?.originalIndex ?? currentQ,
         respuestaUsuario: opt,
       });
 
@@ -131,39 +166,34 @@ export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onB
       alert("Hubo un error de conexión. 🛰️");
       setSelected(null);
     }
-  }, [selected, encouragement, showCorrect, topic.id, levelIdx, currentQ, lives]);
+  }, [selected, encouragement, showCorrect, topic.id, levelIdx, currentQ, lives, exercises]);
 
   // ── FUNCIÓN: CONTINUAR DESPUÉS DEL MENSAJE DE ÁNIMO ─────────
   const TerminarMensaje = useCallback(() => {
     setEncouragement(null);
+    setShowCorrect(false);
+    setSelected(null);
+    setShowHint(false);
 
-    // ── IF #5: ¿La respuesta anterior fue correcta? ──────────
-    if (showCorrect) {
-      const next = currentQ + 1; // índice de la siguiente pregunta
+    // Avanza a la siguiente pregunta SIEMPRE — sea que la anterior se
+    // haya respondido bien o mal. Al fallar, ya se restó una vida en
+    // Responder(); aquí simplemente no te deja atorado en la misma
+    // pregunta, sigues adelante con la siguiente.
+    const next = currentQ + 1;
 
-      // ── IF #6: ¿Ya terminó todas las preguntas? ──────────
-      // next >= exercises.length → ya no hay más preguntas en el arreglo
-      // exercises.length = 4, si next = 4 → ya terminó (índices van de 0 a 3)
-      if (next >= exercises.length) {
-        // Calcula estrellas según errores totales:
-        //   totalWrong === 0       → 3 estrellas (perfecto)
-        //   totalWrong <= 2        → 2 estrellas (casi perfecto)
-        //   totalWrong > 2         → 1 estrella  (lo completó con errores)
-        onComplete(totalWrong === 0 ? 3 : totalWrong <= 2 ? 2 : 1);
-        // ↑ Doble ternario anidado: condición1 ? valor1 : condición2 ? valor2 : valor3
-      } else {
-        // Avanza a la siguiente pregunta del arreglo
-        setCurrentQ(next);
-        setSelected(null);
-        setShowHint(false);
-        setShowCorrect(false);
-      }
+    // ── ¿Ya terminó todas las preguntas? ──────────
+    // next >= exercises.length → ya no hay más preguntas en el arreglo
+    if (next >= exercises.length) {
+      // Calcula estrellas según errores totales:
+      //   totalWrong === 0       → 3 estrellas (perfecto)
+      //   totalWrong <= 2        → 2 estrellas (casi perfecto)
+      //   totalWrong > 2         → 1 estrella  (lo completó con errores)
+      onComplete(totalWrong === 0 ? 3 : totalWrong <= 2 ? 2 : 1);
+      // ↑ Doble ternario anidado: condición1 ? valor1 : condición2 ? valor2 : valor3
     } else {
-      // Respuesta incorrecta → limpia para que pueda responder de nuevo
-      setSelected(null);
-      setShowHint(false);
+      setCurrentQ(next);
     }
-  }, [showCorrect, currentQ, totalWrong, onComplete, exercises.length]);
+  }, [currentQ, totalWrong, onComplete, exercises.length]);
 
   // Reinicia todos los estados para volver a empezar el nivel desde cero
   const Reintentar = () => {
@@ -179,6 +209,8 @@ export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onB
   if (errorMsg)            return <div className="text-red-400 text-center mt-20 font-semibold">❌ Error: {errorMsg}</div>;
   // ── IF #9: ¿El arreglo de preguntas está vacío? ──────────────
   if (exercises.length === 0) return <div className="text-white text-center mt-20">No hay misiones espaciales en este cuadrante.</div>;
+  // ── IF #9b: ¿La pregunta actual no existe? (protección extra, no debería pasar) ──
+  if (!exercise) return <div className="text-white text-center mt-20">🛰️ Cargando la siguiente pregunta...</div>;
 
   // ── IF #10: ¿Se acabaron las vidas? ──────────────────────────
   if (gameOver) {
@@ -225,7 +257,7 @@ export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onB
         {/* exercise.options es el ARREGLO de 4 opciones de la pregunta actual */}
         {/* .map((opt, i) → opt es el texto de la opción, i es su índice 0-3 */}
         <div className="lv-options">
-          {exercise.options.map((opt, i) => {
+          {shuffledOptions.map((opt, i) => {
 
             // Construimos la clase CSS del botón dinámicamente según el estado
             let cls = 'lv-opt'; // clase base siempre presente

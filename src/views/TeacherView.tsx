@@ -11,8 +11,6 @@ import {
   crearGrupo,
   obtenerMisGrupos,
   obtenerGrupo,
-  listarUsuarios,
-  agregarEstudianteAGrupo,
   quitarEstudianteDeGrupo,
   asignarTemaAGrupo,
   quitarTemaDeGrupo,
@@ -40,7 +38,6 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
   // ── Estado de gestión de un grupo específico ──
   const [selectedGrupo, setSelectedGrupo] = useState<any | null>(null);
   const [manageTab, setManageTab] = useState<ManageTab>('estudiantes');
-  const [allStudents, setAllStudents] = useState<any[]>([]);
   const [codigoCopiado, setCodigoCopiado] = useState(false);
 
   const handleCopiarCodigo = (codigo: string) => {
@@ -99,9 +96,6 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
       setSelectedGrupo(data.data);
       setManageTab('estudiantes');
       setTab('gestionar');
-
-      const usuarios = await listarUsuarios();
-      setAllStudents((usuarios || []).filter((u: any) => u.nombre_rol === 'estudiante'));
     } catch (error) {
       console.error('Error:', error);
     }
@@ -114,11 +108,6 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
   };
 
   // ── Estudiantes ──
-  const handleAddEstudiante = async (estudiante: any) => {
-    await agregarEstudianteAGrupo(selectedGrupo.id_grupo, estudiante.id);
-    refrescarGrupoSeleccionado();
-  };
-
   const handleRemoveEstudiante = async (idUsuario: number) => {
     await quitarEstudianteDeGrupo(selectedGrupo.id_grupo, idUsuario);
     refrescarGrupoSeleccionado();
@@ -154,9 +143,6 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
   };
 
   const temasDelGrado = selectedGrupo ? (TOPICS_BY_GRADE[selectedGrupo.grado] || []) : [];
-  const estudiantesDisponibles = allStudents.filter(
-    s => !(selectedGrupo?.estudiantes || []).some((e: any) => e.id_usuario === s.id)
-  );
 
   return (
     <div className="tv-backdrop">
@@ -300,27 +286,13 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
               <div className="tv-card">
                 <p className="tv-section-label">En el grupo ({selectedGrupo.estudiantes?.length || 0})</p>
                 {(!selectedGrupo.estudiantes || selectedGrupo.estudiantes.length === 0) ? (
-                  <p className="tv-empty-msg">Aún no hay estudiantes en este grupo.</p>
+                  <p className="tv-empty-msg">Aún no hay estudiantes en este grupo. Comparte el código para que se unan al registrarse.</p>
                 ) : (
                   <div className="tv-list">
                     {selectedGrupo.estudiantes.map((e: any) => (
                       <div key={e.id_usuario} className="tv-list-item">
                         <span>👤 {e.nombre} <small>({e.correo})</small></span>
                         <button className="tv-btn-delete" onClick={() => handleRemoveEstudiante(e.id_usuario)}>❌</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <p className="tv-section-label">Disponibles para agregar</p>
-                {estudiantesDisponibles.length === 0 ? (
-                  <p className="tv-empty-msg">No hay más estudiantes registrados para agregar.</p>
-                ) : (
-                  <div className="tv-list">
-                    {estudiantesDisponibles.map((s: any) => (
-                      <div key={s.id} className="tv-list-item">
-                        <span>👤 {s.nombre} <small>({s.correo}) · {s.grado}</small></span>
-                        <button className="tv-btn-edit" onClick={() => handleAddEstudiante(s)}>➕ Agregar</button>
                       </div>
                     ))}
                   </div>

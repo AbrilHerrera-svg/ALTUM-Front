@@ -10,7 +10,7 @@
 import { useState, useEffect } from 'react';
 import SpaceBackdrop from '../components/SpaceBackdrop'; // fondo animado del espacio
 import SpacePlanets  from '../components/SpacePlanets';  // planetas decorativos
-import { iniciarSesion, iniciarSesionORegistrar, listarUsuarios, buscarGrupoPorCodigo } from '../services/api';
+import { iniciarSesion, iniciarSesionORegistrar, listarUsuarios, buscarGrupoPorCodigo, recuperarContrasena } from '../services/api';
 import './LoginView.css';
 
 // Opciones del selector de grado escolar
@@ -76,7 +76,10 @@ export default function VistaLogin({ onLogin }: Props) {
 
   // ── ESTADOS DEL FORMULARIO DE RECUPERAR CONTRASEÑA ──────────
   const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotSent,  setForgotSent]  = useState(false); // true cuando "se envió" el correo
+  const [forgotNombre, setForgotNombre] = useState('');
+  const [forgotPassword, setForgotPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [forgotSent,  setForgotSent]  = useState(false); // true cuando ya se cambió la contraseña
 
   // ── MENSAJES DE ERROR Y ÉXITO ────────────────────────────────
   const [error,   setError]   = useState('');
@@ -192,13 +195,38 @@ export default function VistaLogin({ onLogin }: Props) {
     }
   };
 
-  // ── FUNCIÓN: RECUPERAR CONTRASEÑA ────────────────────────────
-  // Solo muestra un mensaje de confirmación visual — no envía correo real
-  const RecuperarContrasena = (e: React.FormEvent) => {
+  // ── FUNCIÓN: RECUPERAR CONTRASEÑA (real, sin correo) ─────────
+  // Verifica correo + nombre completo contra el backend; si coinciden,
+  // guarda la contraseña nueva directo, sin enviar ningún correo.
+  const RecuperarContrasena = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!forgotEmail) { setError('Ingresa tu correo electrónico.'); return; }
-    setForgotSent(true); // activa el mensaje de "señal enviada"
+
+    if (!forgotEmail.trim() || !forgotNombre.trim()) {
+      setError('Ingresa tu correo y tu nombre completo (igual que al registrarte).');
+      return;
+    }
+    if (forgotPassword.length < 6) {
+      setError('La nueva contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (forgotPassword !== forgotConfirmPassword) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+
+    try {
+      const { ok, data } = await recuperarContrasena(forgotEmail.trim().toLowerCase(), forgotNombre.trim(), forgotPassword);
+
+      if (!ok) {
+        setError(data.error || 'No se pudo recuperar la contraseña.');
+        return;
+      }
+
+      setForgotSent(true); // activa el mensaje de éxito
+    } catch (err) {
+      setError('Error de red al recuperar la contraseña.');
+    }
   };
 
   // ── RENDERIZADO ──────────────────────────────────────────────
@@ -387,20 +415,35 @@ export default function VistaLogin({ onLogin }: Props) {
             {!forgotSent ? (
               <form onSubmit={RecuperarContrasena} className="space-form">
                 <p className="forgot-desc">
-                  Ingresa tu correo y te enviaremos las instrucciones para recuperar tu contraseña.
+                  Ingresa el correo y el nombre completo que usaste al registrarte,
+                  y podrás poner una contraseña nueva directamente.
                 </p>
                 <div className="space-field">
                   <label>Correo electrónico</label>
                   <input type="email" className="space-input" placeholder="explorador@cosmos.com"
                     value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} autoComplete="email" />
                 </div>
-                <button type="submit" className="space-btn primary">Enviar instrucciones 📡</button>
+                <div className="space-field">
+                  <label>Nombre completo</label>
+                  <input type="text" className="space-input" placeholder="Igual que como te registraste"
+                    value={forgotNombre} onChange={e => setForgotNombre(e.target.value)} autoComplete="name" />
+                </div>
+                <div className="space-field">
+                  <label>Nueva contraseña</label>
+                  <input type="password" className="space-input" placeholder="Mínimo 6 caracteres"
+                    value={forgotPassword} onChange={e => setForgotPassword(e.target.value)} autoComplete="new-password" />
+                </div>
+                <div className="space-field">
+                  <label>Confirmar nueva contraseña</label>
+                  <input type="password" className="space-input" placeholder="Repite la contraseña"
+                    value={forgotConfirmPassword} onChange={e => setForgotConfirmPassword(e.target.value)} autoComplete="new-password" />
+                </div>
+                <button type="submit" className="space-btn primary">Cambiar contraseña 🔑</button>
               </form>
             ) : (
-              // Mensaje visual de confirmación (no envía correo real)
               <div className="forgot-success">
-                <div className="forgot-icon">📡</div>
-                <p>¡Señal enviada! Revisa tu correo <strong>{forgotEmail}</strong> para recuperar tu contraseña.</p>
+                <div className="forgot-icon">✅</div>
+                <p>¡Listo! Tu contraseña se cambió correctamente. Ya puedes iniciar sesión con la nueva.</p>
               </div>
             )}
             <button type="button" className="space-link mt" onClick={() => cambiarModo('login')}>

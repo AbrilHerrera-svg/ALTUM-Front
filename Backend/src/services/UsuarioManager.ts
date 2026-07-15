@@ -206,6 +206,35 @@ export class UsuarioManager {
     return true;
   }
 
+  // "Recuperar contraseña" sin correo real: verifica correo + nombre completo
+  // (los mismos datos que usó al registrarse). Si coinciden, deja poner una
+  // contraseña nueva directamente, sin necesitar la contraseña actual.
+  public static async recuperarContrasena(
+    correo: string,
+    nombre: string,
+    contrasenaNueva: string
+  ): Promise<boolean> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT id_usuario, nombre FROM usuarios WHERE correo = ? LIMIT 1',
+      [correo.trim().toLowerCase()]
+    );
+    const usuario = rows[0];
+
+    // Comparación insensible a mayúsculas/espacios extra, para no ser
+    // demasiado estricto (ej. "Ana Perez" vs "ana perez ")
+    const nombreCoincide = usuario && usuario.nombre.trim().toLowerCase() === nombre.trim().toLowerCase();
+
+    if (!usuario || !nombreCoincide) {
+      return false;
+    }
+
+    await pool.query(
+      'UPDATE usuarios SET contrasena = ? WHERE id_usuario = ?',
+      [contrasenaNueva, usuario.id_usuario]
+    );
+    return true;
+  }
+
   public static async eliminar(id: number): Promise<void> {
     // ON DELETE CASCADE en tu script se encarga de estudiantes/tutores/medallas/estrellas
     await pool.query('DELETE FROM usuarios WHERE id_usuario = ?', [id]);

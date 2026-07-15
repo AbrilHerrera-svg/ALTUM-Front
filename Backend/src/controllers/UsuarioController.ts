@@ -120,6 +120,31 @@ export class UsuarioController {
     }
   }
 
+  // ── RECUPERAR CONTRASEÑA (sin correo real) → POST /api/usuarios/recuperar ──
+  // Verifica correo + nombre completo (los mismos datos del registro).
+  // Si coinciden, deja poner una contraseña nueva directo, sin correo de por medio.
+  public async recuperarContrasena(req: Request, res: Response): Promise<void> {
+    try {
+      const { correo, nombre, contrasenaNueva } = req.body;
+
+      if (!correo || !nombre || !contrasenaNueva) {
+        res.status(400).json({ error: 'Faltan datos: correo, nombre y contrasenaNueva son obligatorios' });
+        return;
+      }
+
+      const ok = await UsuarioManager.recuperarContrasena(correo, nombre, contrasenaNueva);
+
+      if (!ok) {
+        res.status(404).json({ error: 'No encontramos una cuenta con ese correo y nombre. Revisa que estén escritos igual que al registrarte.' });
+        return;
+      }
+
+      res.status(200).json({ mensaje: 'Contraseña actualizada con éxito' });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al recuperar la contraseña', detalle: error.message });
+    }
+  }
+
   // ── ELIMINAR → DELETE /api/usuarios/:id ──────────────────────
   public async eliminar(req: Request, res: Response): Promise<void> {
     try {

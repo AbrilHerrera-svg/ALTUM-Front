@@ -70,6 +70,17 @@ export async function cambiarContrasena(id: number, contrasenaActual: string, co
   return { ok: res.ok, data };
 }
 
+// "Olvidé mi contraseña" — verifica correo + nombre completo (sin correo real).
+export async function recuperarContrasena(correo: string, nombre: string, contrasenaNueva: string) {
+  const res = await fetch(`${BASE_URL}/usuarios/recuperar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ correo, nombre, contrasenaNueva }),
+  });
+  const data = await res.json();
+  return { ok: res.ok, data };
+}
+
 // ── PROGRESO ──────────────────────────────────────────────────
 
 export async function obtenerProgreso(nombreAlumno: string) {
