@@ -5,7 +5,7 @@
     "rootDir": "./src",                          
     "moduleResolution": "node16",                  
     "esModuleInterop": true,                     
-    "forceConsistentCasingInFileNames": true,            
+    "forceConsistentCasingInFileNames": false,            
     "strict": true,                              
     "skipLibCheck": true                         
   },
