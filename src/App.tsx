@@ -24,6 +24,8 @@ import VistaPerfil       from './views/ProfileView';
 import VistaTienda       from './views/ShopView';
 import AdminView         from './views/AdminView';
 import TeacherView       from './views/TeacherView';
+import ConfirmModal      from './components/ConfirmModal';
+import './components/ConfirmModal.css';
 import type { Topic, Progress, ViewName, ShopData } from './types';
 
 // Importamos las funciones que hablan con el backend.
@@ -60,6 +62,37 @@ function leerSesion(): SesionGuardada | null {
 }
 function borrarSesion() {
   localStorage.removeItem(CLAVE_SESION);
+}
+
+// Recuerda el último grupo del que el alumno formaba parte, para poder
+// avisarle si su maestro lo elimina (comparando contra lo que devuelve
+// el backend la próxima vez que entra o recarga la página).
+function guardarUltimoGrupo(userId: number, idGrupo: number | null) {
+  const clave = `altum_ultimo_grupo_${userId}`;
+  if (idGrupo === null) { localStorage.removeItem(clave); return; }
+  localStorage.setItem(clave, String(idGrupo));
+}
+function leerUltimoGrupo(userId: number): number | null {
+  const v = localStorage.getItem(`altum_ultimo_grupo_${userId}`);
+  return v ? Number(v) : null;
+}
+
+// Compara el grupo nuevo contra el último conocido; si antes tenía uno y
+// ahora no, significa que su maestro lo eliminó → dispara el aviso.
+function procesarNuevoGrupo(
+  userId: number,
+  nuevoGrupo: any | null,
+  setMisGrupo: (g: any | null) => void,
+  setAvisoGrupoEliminado: (v: boolean) => void,
+) {
+  const anteriorId = leerUltimoGrupo(userId);
+  if (anteriorId && !nuevoGrupo) {
+    setAvisoGrupoEliminado(true);
+    guardarUltimoGrupo(userId, null);
+  } else if (nuevoGrupo) {
+    guardarUltimoGrupo(userId, nuevoGrupo.id_grupo);
+  }
+  setMisGrupo(nuevoGrupo);
 }
 
 // Guarda la tienda de cada alumno en el navegador, separado por correo
@@ -125,6 +158,7 @@ export default function Aplicacion() {
   // (con los temas y ejercicios que su maestro dejó habilitados).
   // null = no pertenece a ningún grupo → ve el catálogo completo, sin restricciones.
   const [misGrupo, setMisGrupo] = useState<any | null>(null);
+  const [avisoGrupoEliminado, setAvisoGrupoEliminado] = useState(false);
 
   // ── RESTAURAR SESIÓN AL RECARGAR LA PÁGINA (F5) ───────────────
   // Se ejecuta UNA sola vez al montar la app. Si hay una sesión guardada
@@ -151,7 +185,7 @@ export default function Aplicacion() {
     if (sesion.userRole === 'estudiante') {
       setShopData(obtenerTiendaDe(sesion.userEmail));
       obtenerGrupoDeEstudiante(sesion.userId)
-        .then(dataGrupo => setMisGrupo(dataGrupo.data || null))
+        .then(dataGrupo => procesarNuevoGrupo(sesion.userId, dataGrupo.data || null, setMisGrupo, setAvisoGrupoEliminado))
         .catch(() => setMisGrupo(null));
       setView('dashboard');
     } else if (sesion.userRole === 'tutor') {
@@ -215,7 +249,7 @@ export default function Aplicacion() {
           try {
             const idUsuario = datos.usuario.id_usuario ?? datos.usuario.id;
             const dataGrupo = await obtenerGrupoDeEstudiante(idUsuario);
-            setMisGrupo(dataGrupo.data || null);
+            procesarNuevoGrupo(idUsuario, dataGrupo.data || null, setMisGrupo, setAvisoGrupoEliminado);
           } catch {
             setMisGrupo(null);
           }
@@ -524,6 +558,15 @@ export default function Aplicacion() {
       {view === 'teacher' && (
         <TeacherView userId={userId ?? 0} userEmail={userEmail} onBack={alCerrarSesion} />
       )}
+
+      {/* Aviso: tu maestro eliminó el grupo al que pertenecías */}
+      <ConfirmModal
+        open={avisoGrupoEliminado}
+        title="Tu grupo cambió"
+        message="Tu maestro eliminó el grupo al que pertenecías. Ahora ves el catálogo completo de temas, sin restricciones."
+        confirmText="Entendido"
+        onConfirm={() => setAvisoGrupoEliminado(false)}
+      />
     </>
   );
 }

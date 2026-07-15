@@ -7,6 +7,8 @@
 
 import { useState, useEffect } from 'react';
 import { TOPICS_BY_GRADE, LEVEL_NAMES } from '../data/topics';
+import ConfirmModal from '../components/ConfirmModal';
+import '../components/ConfirmModal.css';
 import {
   crearGrupo,
   obtenerMisGrupos,
@@ -16,6 +18,7 @@ import {
   quitarTemaDeGrupo,
   asignarNivelAGrupo,
   quitarNivelDeGrupo,
+  eliminarGrupo,
 } from '../services/api';
 import './TeacherView.css';
 
@@ -83,10 +86,22 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
     }
   };
 
-  const handleDeleteGrupo = async (idGrupo: number) => {
-    if (!confirm('¿Eliminar este grupo?')) return;
-    // No hay endpoint de borrado real todavía — solo refrescamos la lista visible
-    handleFetchGrupos();
+  const [grupoAEliminar, setGrupoAEliminar] = useState<number | null>(null);
+
+  const handleDeleteGrupo = (idGrupo: number) => {
+    setGrupoAEliminar(idGrupo); // abre el modal bonito, en vez del confirm() nativo
+  };
+
+  const confirmarEliminarGrupo = async () => {
+    if (grupoAEliminar === null) return;
+    try {
+      await eliminarGrupo(grupoAEliminar);
+      handleFetchGrupos();
+    } catch (error) {
+      console.error('Error al eliminar el grupo:', error);
+    } finally {
+      setGrupoAEliminar(null);
+    }
   };
 
   // ── Abrir la pantalla de gestión de un grupo ──
@@ -364,6 +379,17 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
           </>
         )}
       </div>
+
+      <ConfirmModal
+        open={grupoAEliminar !== null}
+        title="Eliminar grupo"
+        message="¿Eliminar este grupo? Esto no se puede deshacer. Los alumnos que estaban en él quedarán como independientes."
+        confirmText="Sí, eliminar"
+        cancelText="Cancelar"
+        danger
+        onConfirm={confirmarEliminarGrupo}
+        onCancel={() => setGrupoAEliminar(null)}
+      />
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import CabeceraJuego from '../components/GameHeader';
 import BarraProgreso from '../components/ProgressBar';
 import MensajeAnimo  from '../components/EncouragementMessage';
+import ConfirmModal  from '../components/ConfirmModal';
+import '../components/ConfirmModal.css';
 import { ENCOURAGEMENTS_WRONG, ENCOURAGEMENTS_CORRECT, LEVEL_NAMES } from '../data/topics';
 import { obtenerEjercicios, verificarRespuesta } from '../services/api';
 import type { Topic, EncouragementType, Exercise } from '../types';
@@ -73,6 +75,7 @@ export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onB
   const [showHint,      setShowHint]      = useState(false);
   const [encouragement, setEncouragement] = useState<EncouragementState | null>(null);
   const [gameOver,      setGameOver]      = useState(false);
+  const [showConnError, setShowConnError] = useState(false);
   const [showCorrect,   setShowCorrect]   = useState(false);
 
   const levelName = LEVEL_NAMES[topic.id]?.[levelIdx] ?? `Nivel ${levelIdx + 1}`;
@@ -163,7 +166,7 @@ export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onB
 
     } catch (error) {
       console.error("Error al conectar con el servidor:", error);
-      alert("Hubo un error de conexión. 🛰️");
+      setShowConnError(true);
       setSelected(null);
     }
   }, [selected, encouragement, showCorrect, topic.id, levelIdx, currentQ, lives, exercises]);
@@ -316,6 +319,14 @@ export default function VistaNivel({ topic, levelIdx, userGrade, onComplete, onB
           onDone={TerminarMensaje}
         />
       )}
+
+      <ConfirmModal
+        open={showConnError}
+        title="Error de conexión"
+        message="Hubo un error de conexión con la base de datos estelar. 🛰️ Revisa tu internet e intenta de nuevo."
+        confirmText="Entendido"
+        onConfirm={() => setShowConnError(false)}
+      />
     </div>
   );
 }

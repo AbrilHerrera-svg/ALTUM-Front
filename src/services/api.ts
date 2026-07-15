@@ -208,6 +208,11 @@ export async function quitarTemaDeGrupo(idGrupo: number, idTemaSlug: string) {
   return res.json();
 }
 
+export async function eliminarGrupo(idGrupo: number) {
+  const res = await fetch(`${BASE_URL}/teacher/grupos/${idGrupo}`, { method: 'DELETE' });
+  return res.json();
+}
+
 // idTemaSlug es el slug del tema, idNivel es el índice del nivel (0-7)
 export async function asignarNivelAGrupo(idGrupo: number, idTemaSlug: string, idNivel: number) {
   const res = await fetch(`${BASE_URL}/teacher/grupos/${idGrupo}/ejercicios`, {

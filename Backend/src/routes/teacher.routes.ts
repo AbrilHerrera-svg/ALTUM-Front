@@ -24,4 +24,7 @@ router.delete('/grupos/:id/temas/:id_tema', (req, res) => controller.removeTemaF
 router.post('/grupos/:id/ejercicios', (req, res) => controller.assignEjercicioToGrupo(req, res));
 router.delete('/grupos/:id/ejercicios/:id_ejercicio', (req, res) => controller.removeEjercicioFromGrupo(req, res));
 
+// Eliminar un grupo por completo
+router.delete('/grupos/:id', (req, res) => controller.deleteGrupo(req, res));
+
 export default router;

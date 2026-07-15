@@ -200,4 +200,15 @@ export class TeacherController {
       res.status(500).json({ error: 'Error al quitar el nivel del grupo', detalle: error.message });
     }
   }
+
+  // DELETE /api/teacher/grupos/:id — Eliminar un grupo por completo
+  public async deleteGrupo(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      await GrupoManager.eliminar(Number(id));
+      res.status(200).json({ message: 'Grupo eliminado' });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Error al eliminar el grupo', detalle: error.message });
+    }
+  }
 }

@@ -213,4 +213,11 @@ export class GrupoManager {
       [id_grupo, slugTema, ordenNivel]
     );
   }
+
+  // Elimina el grupo. `grupo_temas` y `grupo_niveles` se borran solos
+  // (ON DELETE CASCADE), y los alumnos que estaban en el grupo quedan
+  // como independientes (ON DELETE SET NULL en estudiantes.id_grupo).
+  public static async eliminar(id_grupo: number): Promise<void> {
+    await pool.query('DELETE FROM grupos WHERE id_grupo = ?', [id_grupo]);
+  }
 }

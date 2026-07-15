@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TOPICS_BY_GRADE, LEVEL_NAMES } from '../data/topics';
+import ConfirmModal from '../components/ConfirmModal';
+import '../components/ConfirmModal.css';
 import {
   obtenerEjerciciosAdmin,
   crearEjercicioAdmin,
@@ -136,13 +138,21 @@ export default function AdminView({ onBack }: Props) {
     setTab('create');
   };
 
-  const handleDeleteEjercicio = async (id: number) => {
-    if (!confirm('¿Eliminar este ejercicio?')) return;
+  const [ejercicioAEliminar, setEjercicioAEliminar] = useState<number | null>(null);
+
+  const handleDeleteEjercicio = (id: number) => {
+    setEjercicioAEliminar(id);
+  };
+
+  const confirmarEliminarEjercicio = async () => {
+    if (ejercicioAEliminar === null) return;
     try {
-      await eliminarEjercicioAdmin(id);
+      await eliminarEjercicioAdmin(ejercicioAEliminar);
       handleFetchEjercicios();
     } catch (error) {
       console.error('Error:', error);
+    } finally {
+      setEjercicioAEliminar(null);
     }
   };
 
@@ -329,6 +339,17 @@ export default function AdminView({ onBack }: Props) {
         </div>
 
       </div>
+
+      <ConfirmModal
+        open={ejercicioAEliminar !== null}
+        title="Eliminar ejercicio"
+        message="¿Eliminar este ejercicio? Esta acción no se puede deshacer."
+        confirmText="Sí, eliminar"
+        cancelText="Cancelar"
+        danger
+        onConfirm={confirmarEliminarEjercicio}
+        onCancel={() => setEjercicioAEliminar(null)}
+      />
     </div>
   );
 }
