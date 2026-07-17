@@ -11,12 +11,16 @@
 // ============================================================
 
 import { useState }         from 'react';
-import { CHARACTERS, SHOP_ITEMS, obtenerRango } from '../data/shop';
+import { obtenerRango } from '../data/shop';
+import { cambiarContrasena } from '../services/api';
 import type { Progress, User, ShopData } from '../types';
 import './ProfileView.css';
 
 // Opciones del selector de grado
 const GRADES = ['4°', '5°', '6°'];
+
+// Emojis disponibles para elegir como avatar
+const AVATARS = ['👨‍🚀','👩‍🚀','👾','🤖','🦸','🧑‍🔬','👽','🌟','🚀','🪐','🌙','☄️','🦊','🐉','🦁'];
 
 // Funciones auxiliares para leer/guardar usuarios en localStorage
 // localStorage guarda datos en el navegador aunque se recargue la página
@@ -46,23 +50,26 @@ interface ProfileUpdate { name: string; grade: string; avatar: string; }
 
 // Props que recibe de App.tsx
 interface Props {
+  userId:          number;
   userName:        string;
   userGrade:       string;
   userEmail:       string;
   userAvatar:      string;
   progress:        Progress;
   shopData:        ShopData;                      // accesorios comprados/puestos
+  nombreGrupo?:    string | null;                 // si no es null, el alumno pertenece a un grupo
   onBack:          () => void;                    // volver al dashboard
   onUpdate:        (u: ProfileUpdate) => void;    // guardar cambios en App.tsx y backend
-  onLogout:        () => void;                    // cerrar sesión / eliminar cuenta
-  onResetProgress: () => void;                    // borrar el progreso localmente
+  onLogout:        () => void;                    // cerrar sesión (NO borra la cuenta)
+  onDeleteAccount: () => void;                    // borrar la cuenta permanentemente
+  onResetProgress: () => void;                    // borrar el progreso (local Y en la base de datos)
   onGoShop:        () => void;                    // ir a la pantalla de la tienda
 }
 
 // Los dos modos de la pantalla
 type Tab = 'profile' | 'password';
 
-export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar, progress, shopData, onBack, onUpdate, onLogout, onResetProgress, onGoShop }: Props) {
+export default function VistaPerfil({ userId, userName, userGrade, userEmail, userAvatar, progress, nombreGrupo = null, onBack, onUpdate, onLogout, onDeleteAccount, onResetProgress }: Props) {
 
   // ── ESTADO DE PESTAÑAS ───────────────────────────────────────
   const [tab, setTab] = useState<Tab>('profile'); // empieza en la pestaña de perfil
@@ -84,6 +91,7 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
   // ── ESTADO DE CONFIRMACIÓN DE BORRADO ───────────────────────
   // Cuando es true, muestra el mensaje "¿Estás seguro?" antes de borrar
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // ── ESTADO DEL PORTAL DE CONSULTA ───────────────────────────
   // Un pequeño panel de ayuda que se muestra/oculta con un botón
@@ -93,12 +101,9 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
   const stats = obtenerEstadisticas(progress || {});
   const rango = obtenerRango(stats.stars); // título según las estrellas acumuladas
 
-  // Accesorio que el alumno tiene puesto actualmente (o undefined si ninguno)
-  const accesorioPuesto = SHOP_ITEMS && shopData?.equipped ? SHOP_ITEMS.find(i => i.id === shopData.equipped) : undefined;
-
-  // ── FUNCIÓN: ELEGIR PERSONAJE BASE ───────────────────────────
-  // Al elegir astronauta/alíen, se actualiza el avatar de inmediato (igual que Guardar)
-  const alElegirPersonaje = (emoji: string) => {
+  // ── FUNCIÓN: ELEGIR AVATAR ───────────────────────────────────
+  // Al elegir un emoji, se actualiza el avatar de inmediato (igual que Guardar)
+  const alElegirAvatar = (emoji: string) => {
     setAvatar(emoji);
     onUpdate({ name: name.trim() || userName, grade, avatar: emoji });
   };
@@ -125,14 +130,11 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
   };
 
   // ── FUNCIÓN: CAMBIAR CONTRASEÑA ──────────────────────────────
-  const alCambiarContrasena = () => {
+  const alCambiarContrasena = async () => {
     setPwMsg({ text: '', ok: false });
 
-    // Verifica la contraseña actual contra localStorage
-    const users = obtenerUsuarios();
-    const user  = users.find(u => u.email === userEmail);
-    if (!user || user.password !== currentPw) {
-      setPwMsg({ text: 'La contraseña actual es incorrecta.', ok: false }); return;
+    if (!currentPw) {
+      setPwMsg({ text: 'Ingresa tu contraseña actual.', ok: false }); return;
     }
     if (newPw.length < 6) {
       setPwMsg({ text: 'La nueva contraseña debe tener al menos 6 caracteres.', ok: false }); return;
@@ -141,15 +143,21 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
       setPwMsg({ text: 'Las contraseñas nuevas no coinciden.', ok: false }); return;
     }
 
-    // Guarda la nueva contraseña en localStorage
-    const idx = users.findIndex(u => u.email === userEmail);
-    users[idx].password = newPw;
-    guardarUsuarios(users);
+    try {
+      const { ok, data } = await cambiarContrasena(userId, currentPw, newPw);
 
-    // Limpia los campos y muestra mensaje de éxito
-    setCurrentPw(''); setNewPw(''); setConfirmPw('');
-    setPwMsg({ text: '✅ ¡Contraseña actualizada!', ok: true });
-    setTimeout(() => setPwMsg({ text: '', ok: false }), 2500);
+      if (!ok) {
+        setPwMsg({ text: data.error || 'La contraseña actual es incorrecta.', ok: false });
+        return;
+      }
+
+      // Limpia los campos y muestra mensaje de éxito
+      setCurrentPw(''); setNewPw(''); setConfirmPw('');
+      setPwMsg({ text: '✅ ¡Contraseña actualizada!', ok: true });
+      setTimeout(() => setPwMsg({ text: '', ok: false }), 2500);
+    } catch (err) {
+      setPwMsg({ text: 'Error de red al cambiar la contraseña.', ok: false });
+    }
   };
 
   return (
@@ -171,8 +179,6 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
           <div className="pv-id-card">
             <div className="pv-avatar-circle">
               <span>{avatar}</span>
-              {/* Insignia del accesorio puesto, si tiene uno */}
-              {accesorioPuesto && <span className="pv-avatar-badge">{accesorioPuesto.emoji}</span>}
             </div>
             <div className="pv-id-name">( {userName || 'Usuario explorador'} )</div>
             <div className="pv-id-email">( {userEmail || 'correo'} )</div>
@@ -184,49 +190,27 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
             </div>
           </div>
 
-          {/* ── Columna derecha: elegir personaje + accesorios comprados ── */}
+          {/* ── Columna derecha: elegir avatar ── */}
           <div className="pv-side-col">
             <div className="pv-panel">
-              <p className="pv-panel-title">🛸 Selecciona tu personaje</p>
-              <div className="pv-char-row">
-                {CHARACTERS.map(c => (
+              <p className="pv-panel-title">🛸 Elige tu avatar</p>
+              <div className="pv-avatar-grid">
+                {AVATARS.map(a => (
                   <button
-                    key={c.id}
-                    className={`pv-char-card ${avatar === c.emoji ? 'selected' : ''}`}
-                    onClick={() => alElegirPersonaje(c.emoji)}
+                    key={a}
+                    className={`pv-avatar-opt ${avatar === a ? 'selected' : ''}`}
+                    onClick={() => alElegirAvatar(a)}
                   >
-                    <span className="pv-char-emoji">{c.emoji}</span>
-                    <span className="pv-char-label">{c.label}</span>
+                    {a}
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div className="pv-panel">
-              <p className="pv-panel-title">👕 Tus accesorios comprados</p>
-              {shopData.ownedItems.length === 0 ? (
-                <p className="pv-empty-msg">Aún no has comprado accesorios. ¡Visita la tienda!</p>
-              ) : (
-                <div className="pv-items-row">
-                  {shopData.ownedItems.map(id => {
-                    const item = SHOP_ITEMS.find(i => i.id === id);
-                    if (!item) return null;
-                    return (
-                      <div key={id} className="pv-item-card">
-                        <span className="pv-item-emoji">{item.emoji}</span>
-                        <span className="pv-item-name">{item.name}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           </div>
         </div>
 
         {/* ── Botones principales ── */}
         <div className="pv-actions-row">
-          <button className="pv-action-btn" onClick={onGoShop}>🛍️ Visitar la Tienda</button>
           <button className="pv-action-btn" onClick={() => setShowHelp(h => !h)}>📖 Portal de Consulta</button>
         </div>
 
@@ -235,8 +219,7 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
           <div className="pv-card">
             <p className="pv-section-label">Preguntas frecuentes</p>
             <p className="pv-help-text">⭐ Ganas estrellas al completar niveles con buenas respuestas.</p>
-            <p className="pv-help-text">🛍️ Usa tus estrellas en la Tienda para comprar accesorios.</p>
-            <p className="pv-help-text">🛸 Elige tu personaje base gratis cuando quieras.</p>
+            <p className="pv-help-text">🛸 Elige tu avatar gratis cuando quieras.</p>
           </div>
         )}
 
@@ -251,7 +234,7 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
         </div>
 
         {/* ── PESTAÑA: EDITAR PERFIL ── */}
-        {/* El avatar ahora se elige arriba, en "Selecciona tu personaje" */}
+        {/* El avatar ahora se elige arriba, en "Elige tu avatar" */}
         {tab === 'profile' && (
           <div className="pv-card">
             <p className="pv-section-label">Nombre</p>
@@ -261,11 +244,22 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
             {/* Botones de grado — el seleccionado tiene clase 'selected' */}
             <div className="pv-grade-opts">
               {GRADES.map(g => (
-                <button key={g} className={`pv-grade-btn ${grade === g ? 'selected' : ''}`} onClick={() => setGrade(g)}>
+                <button
+                  key={g}
+                  className={`pv-grade-btn ${grade === g ? 'selected' : ''}`}
+                  onClick={() => !nombreGrupo && setGrade(g)}
+                  disabled={!!nombreGrupo}
+                  style={nombreGrupo ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                >
                   {g}
                 </button>
               ))}
             </div>
+            {nombreGrupo && (
+              <small style={{ color: '#7c3aed', display: 'block', marginTop: '0.25rem' }}>
+                🔒 Tu grado lo define tu grupo "{nombreGrupo}" — pídele a tu maestro que te cambie de grupo si es incorrecto.
+              </small>
+            )}
 
             {/* Mensaje de éxito o error al guardar */}
             {profileMsg && <p className="pv-msg">{profileMsg}</p>}
@@ -311,8 +305,21 @@ export default function VistaPerfil({ userName, userGrade, userEmail, userAvatar
               </div>
             </div>
           )}
-          {/* onLogout en App.tsx hace el DELETE al backend y luego cierra sesión */}
+          {/* Cerrar sesión: acción normal, sin riesgo, sin confirmación */}
           <button className="pv-logout-btn" onClick={onLogout}>↩ Cerrar sesión</button>
+
+          {/* Eliminar cuenta: PERMANENTE, requiere confirmación explícita aparte */}
+          {!confirmDelete ? (
+            <button className="pv-danger-btn" onClick={() => setConfirmDelete(true)}>❌ Eliminar mi cuenta</button>
+          ) : (
+            <div className="pv-confirm-box">
+              <p className="pv-confirm-text">⚠️ Esto borra tu cuenta PERMANENTEMENTE, no se puede deshacer.</p>
+              <div className="pv-confirm-row">
+                <button className="pv-confirm-yes" onClick={onDeleteAccount}>Sí, eliminar mi cuenta</button>
+                <button className="pv-confirm-no" onClick={() => setConfirmDelete(false)}>Cancelar</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

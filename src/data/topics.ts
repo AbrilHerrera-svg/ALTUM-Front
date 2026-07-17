@@ -209,6 +209,7 @@ export const TOPICS_BY_GRADE: Record<string, Topic[]> = {
 
 // Normaliza el formato del grado para que sea consistente
 function normalizeGrade(grade: string): string {
+  if (!grade) return '6°'; // defensa: si llega undefined/null/'' no truena, usa 6° por defecto
   const normalized = grade.toLowerCase().trim();
   if (normalized.includes('4')) return '4°';
   if (normalized.includes('5')) return '5°';

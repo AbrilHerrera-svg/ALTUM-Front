@@ -2,11 +2,12 @@
 // App.tsx — CEREBRO PRINCIPAL DE LA APP
 // Este componente hace DOS cosas fundamentales:
 //   1. Controla qué pantalla se muestra (navegación)
-//   2. Es el único que habla directamente con el backend
+//   2. Es el único que decide QUÉ pedir al backend
 //
-// Las vistas (Login, Dashboard, etc.) solo muestran datos.
-// Cuando el usuario hace algo (clic, respuesta, etc.), le avisan
-// al App.tsx y ÉL decide qué hacer y qué pantalla mostrar.
+// Ya NO usa fetch() directamente: todas las peticiones pasan por
+// services/api.ts (el mismo patrón que ServiceForm → api.ts en
+// Taller Mecánico). Si el día de mañana cambia el puerto o la URL
+// del backend, solo se toca api.ts — App.tsx no cambia.
 // ============================================================
 
 import { useState, useEffect } from 'react';
@@ -21,7 +22,78 @@ import VistaNivel        from './views/LevelView';
 import VistaResultado    from './views/ResultView';
 import VistaPerfil       from './views/ProfileView';
 import VistaTienda       from './views/ShopView';
+import AdminView         from './views/AdminView';
+import TeacherView       from './views/TeacherView';
+import ConfirmModal      from './components/ConfirmModal';
+import './components/ConfirmModal.css';
 import type { Topic, Progress, ViewName, ShopData } from './types';
+
+// Importamos las funciones que hablan con el backend.
+// App.tsx ya no sabe (ni le importa) qué URL hay detrás de cada una.
+import {
+  iniciarSesionORegistrar,
+  actualizarPerfil as apiActualizarPerfil,
+  eliminarCuenta as apiEliminarCuenta,
+  obtenerProgreso,
+  borrarProgreso as apiBorrarProgreso,
+  guardarProgresoDeNivel,
+  obtenerGrupoDeEstudiante,
+} from './services/api';
+
+// Guarda la sesión activa en el navegador para que sobreviva a un F5.
+// Solo guardamos identidad — el progreso, grupo, etc. se vuelven a pedir
+// al backend cada vez (así siempre está fresco, no desactualizado).
+const CLAVE_SESION = 'altum_session';
+
+interface SesionGuardada {
+  userId: number;
+  userName: string;
+  userGrade: string;
+  userEmail: string;
+  userAvatar: string;
+  userRole: 'estudiante' | 'tutor' | 'administrador';
+}
+
+function guardarSesion(s: SesionGuardada) {
+  localStorage.setItem(CLAVE_SESION, JSON.stringify(s));
+}
+function leerSesion(): SesionGuardada | null {
+  try { return JSON.parse(localStorage.getItem(CLAVE_SESION) || 'null'); } catch { return null; }
+}
+function borrarSesion() {
+  localStorage.removeItem(CLAVE_SESION);
+}
+
+// Recuerda el último grupo del que el alumno formaba parte, para poder
+// avisarle si su maestro lo elimina (comparando contra lo que devuelve
+// el backend la próxima vez que entra o recarga la página).
+function guardarUltimoGrupo(userId: number, idGrupo: number | null) {
+  const clave = `altum_ultimo_grupo_${userId}`;
+  if (idGrupo === null) { localStorage.removeItem(clave); return; }
+  localStorage.setItem(clave, String(idGrupo));
+}
+function leerUltimoGrupo(userId: number): number | null {
+  const v = localStorage.getItem(`altum_ultimo_grupo_${userId}`);
+  return v ? Number(v) : null;
+}
+
+// Compara el grupo nuevo contra el último conocido; si antes tenía uno y
+// ahora no, significa que su maestro lo eliminó → dispara el aviso.
+function procesarNuevoGrupo(
+  userId: number,
+  nuevoGrupo: any | null,
+  setMisGrupo: (g: any | null) => void,
+  setAvisoGrupoEliminado: (v: boolean) => void,
+) {
+  const anteriorId = leerUltimoGrupo(userId);
+  if (anteriorId && !nuevoGrupo) {
+    setAvisoGrupoEliminado(true);
+    guardarUltimoGrupo(userId, null);
+  } else if (nuevoGrupo) {
+    guardarUltimoGrupo(userId, nuevoGrupo.id_grupo);
+  }
+  setMisGrupo(nuevoGrupo);
+}
 
 // Guarda la tienda de cada alumno en el navegador, separado por correo
 const CLAVE_TIENDA = 'altum_shop';
@@ -50,10 +122,6 @@ function calcularEstrellasTotales(progress: Progress): number {
   return total;
 }
 
-// URLs base del backend — si cambia el puerto, solo se cambia aquí
-const API_URL_USUARIOS = 'http://localhost:3000/api/usuarios';
-const API_URL_PROGRESO = 'http://localhost:3000/api/progreso';
-
 export default function Aplicacion() {
 
   // ── ESTADO DE NAVEGACIÓN ─────────────────────────────────────
@@ -69,6 +137,7 @@ export default function Aplicacion() {
   const [userGrade, setUserGrade] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userAvatar,setUserAvatar]= useState('👨‍🚀');
+  const [userRole,  setUserRole]  = useState<'estudiante' | 'tutor' | 'administrador'>('estudiante');
 
   // ── ESTADO DEL JUEGO ─────────────────────────────────────────
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null); // tema seleccionado
@@ -84,6 +153,51 @@ export default function Aplicacion() {
   // Qué accesorios compró el alumno y cuál tiene puesto (se guarda en localStorage)
   const [shopData, setShopData] = useState<ShopData>({ ownedItems: [], equipped: null, spentStars: 0 });
 
+  // ── ESTADO DEL GRUPO DE CLASE ─────────────────────────────────
+  // Si el alumno se unió a un grupo con un código, aquí vive ese grupo
+  // (con los temas y ejercicios que su maestro dejó habilitados).
+  // null = no pertenece a ningún grupo → ve el catálogo completo, sin restricciones.
+  const [misGrupo, setMisGrupo] = useState<any | null>(null);
+  const [avisoGrupoEliminado, setAvisoGrupoEliminado] = useState(false);
+
+  // ── RESTAURAR SESIÓN AL RECARGAR LA PÁGINA (F5) ───────────────
+  // Se ejecuta UNA sola vez al montar la app. Si hay una sesión guardada
+  // en localStorage, la restauramos en vez de mandar a login.
+  //
+  // sesionCargando evita el "parpadeo" de ver la pantalla de login
+  // por una fracción de segundo antes de saltar a la pantalla real.
+  const [sesionCargando, setSesionCargando] = useState(true);
+
+  useEffect(() => {
+    const sesion = leerSesion();
+    if (!sesion) {
+      setSesionCargando(false); // no hay sesión guardada → login normal
+      return;
+    }
+
+    setUserId(sesion.userId);
+    setUserName(sesion.userName);
+    setUserGrade(sesion.userGrade);
+    setUserEmail(sesion.userEmail);
+    setUserAvatar(sesion.userAvatar);
+    setUserRole(sesion.userRole);
+
+    if (sesion.userRole === 'estudiante') {
+      setShopData(obtenerTiendaDe(sesion.userEmail));
+      obtenerGrupoDeEstudiante(sesion.userId)
+        .then(dataGrupo => procesarNuevoGrupo(sesion.userId, dataGrupo.data || null, setMisGrupo, setAvisoGrupoEliminado))
+        .catch(() => setMisGrupo(null));
+      setView('dashboard');
+    } else if (sesion.userRole === 'tutor') {
+      setView('teacher');
+    } else if (sesion.userRole === 'administrador') {
+      setView('admin');
+    }
+
+    setSesionCargando(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // [] = solo al montar, una vez
+
   // ── SINCRONIZACIÓN AUTOMÁTICA DEL PROGRESO ───────────────────
   // useEffect se ejecuta automáticamente cada vez que cambia userName o view.
   // Así el progreso siempre está actualizado al volver al dashboard.
@@ -92,9 +206,7 @@ export default function Aplicacion() {
 
     console.log("🛰️ Intentando descargar progreso para el usuario:", userName);
 
-    // fetch hace una petición GET al backend para traer el progreso del alumno
-    fetch(`${API_URL_PROGRESO}/${userName}`)
-      .then((res) => res.json())         // convierte la respuesta de texto a objeto JavaScript
+    obtenerProgreso(userName)
       .then((data) => {
         console.log("📦 ¡Esto es lo que me respondió el BackEnd de verdad!:", data);
         setProgress(data);               // guarda el progreso en el estado → actualiza la pantalla
@@ -105,39 +217,62 @@ export default function Aplicacion() {
   // ── INICIAR SESIÓN / REGISTRARSE ─────────────────────────────
   // REQUISITO 7 y 9: Operación CREATE (POST) al iniciar sesión / registrarse
   // El backend distingue automáticamente si es login o registro según si el nombre ya existe.
-  const alIniciarSesion = async (name: string, grade: string, email: string, avatar: string) => {
+  const alIniciarSesion = async (name: string, grade: string, email: string, avatar: string, role: 'estudiante' | 'tutor' | 'administrador' = 'estudiante') => {
     try {
-      // await pausa esta función hasta que el backend responda
-      const respuesta = await fetch(API_URL_USUARIOS, {
-        method: 'POST',                                  // POST = crear/enviar datos
-        headers: { 'Content-Type': 'application/json' }, // avisa que mandamos JSON
-        body: JSON.stringify({                            // convierte el objeto a texto JSON
-          nombre: name,
-          grado: grade,
-          correo: email,
-          avatar: avatar || '👨‍🚀'
-        }),
+      // iniciarSesionORegistrar hace el POST por dentro; aquí ya solo recibimos el resultado
+      const datos = await iniciarSesionORegistrar({
+        nombre: name,
+        grado: grade,
+        correo: email,
+        role: role,
       });
 
-      const datos = await respuesta.json(); // convierte la respuesta a objeto JavaScript
-
-      if (respuesta.ok) { // .ok es true si el código HTTP fue 200 o 201
+      if (datos.usuario) {
         // Guardamos los datos del usuario en los estados de React
-        setUserId(datos.usuario.id);
+        setUserId(datos.usuario.id_usuario ?? datos.usuario.id);
         setUserName(datos.usuario.nombre);
-        setUserGrade(datos.usuario.grado);
+        setUserGrade(datos.usuario.grado ?? grade);
         setUserEmail(datos.usuario.correo);
-        setUserAvatar(datos.usuario.avatar);
+        setUserAvatar(datos.usuario.avatar || avatar || '👨‍🚀');
+        setUserRole(role);
 
         // Descargamos el progreso inmediatamente para que el Dashboard no aparezca vacío
-        const resProgreso  = await fetch(`${API_URL_PROGRESO}/${datos.usuario.nombre}`);
-        const dataProgreso = await resProgreso.json();
-        setProgress(dataProgreso);
+        if (role === 'estudiante') {
+          const dataProgreso = await obtenerProgreso(datos.usuario.nombre);
+          setProgress(dataProgreso);
 
-        // Cargamos los accesorios que este alumno ya había comprado antes
-        setShopData(obtenerTiendaDe(datos.usuario.correo));
+          // Cargamos los accesorios que este alumno ya había comprado antes
+          setShopData(obtenerTiendaDe(datos.usuario.correo));
 
-        setView('dashboard'); // cambiamos la pantalla al mapa espacial
+          // Averiguamos si el alumno pertenece a un grupo de clase (se unió con un código)
+          // Si pertenece, el Dashboard solo mostrará los temas/ejercicios que su maestro asignó
+          try {
+            const idUsuario = datos.usuario.id_usuario ?? datos.usuario.id;
+            const dataGrupo = await obtenerGrupoDeEstudiante(idUsuario);
+            procesarNuevoGrupo(idUsuario, dataGrupo.data || null, setMisGrupo, setAvisoGrupoEliminado);
+          } catch {
+            setMisGrupo(null);
+          }
+        }
+
+        // Redirigir según el rol
+        if (role === 'administrador') {
+          setView('admin');
+        } else if (role === 'tutor') {
+          setView('teacher');
+        } else {
+          setView('dashboard');
+        }
+
+        // Guardamos la sesión para que sobreviva a un F5 / recargar la página
+        guardarSesion({
+          userId: datos.usuario.id_usuario ?? datos.usuario.id,
+          userName: datos.usuario.nombre,
+          userGrade: datos.usuario.grado ?? grade,
+          userEmail: datos.usuario.correo,
+          userAvatar: datos.usuario.avatar || avatar || '👨‍🚀',
+          userRole: role,
+        });
       }
     } catch (error) {
       console.error('Error de red al intentar registrar usuario:', error);
@@ -150,20 +285,29 @@ export default function Aplicacion() {
     if (!userId) return; // si no hay usuario logueado, no hace nada
 
     try {
-      // PUT con el ID en la URL → el backend busca ese usuario y lo reemplaza
-      const respuesta = await fetch(`${API_URL_USUARIOS}/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre: name, grado: grade, correo: userEmail, avatar }),
+      // apiActualizarPerfil hace el PUT con el ID en la URL por dentro
+      const datos = await apiActualizarPerfil(userId, {
+        nombre: name,
+        grado: grade,
+        correo: userEmail,
+        avatar,
       });
 
-      const datos = await respuesta.json();
-
-      if (respuesta.ok) {
+      if (datos.usuario) {
         // Actualizamos los estados locales para reflejar los cambios en pantalla al instante
         setUserName(datos.usuario.nombre);
         setUserGrade(datos.usuario.grado);
         setUserAvatar(datos.usuario.avatar);
+
+        // Y la sesión guardada, para que un F5 después de editar no te muestre lo viejo
+        guardarSesion({
+          userId,
+          userName: datos.usuario.nombre,
+          userGrade: datos.usuario.grado,
+          userEmail,
+          userAvatar: datos.usuario.avatar,
+          userRole,
+        });
       } else {
         console.error('Error al actualizar en BackEnd:', datos.error);
       }
@@ -178,13 +322,9 @@ export default function Aplicacion() {
     if (!userId) return;
 
     try {
-      // DELETE con el ID en la URL → el backend elimina ese usuario del array
-      const respuesta = await fetch(`${API_URL_USUARIOS}/${userId}`, {
-        method: 'DELETE',
-        // No necesita body porque solo usamos el ID de la URL
-      });
+      const datos = await apiEliminarCuenta(userId);
 
-      if (respuesta.ok) {
+      if (datos.mensaje) {
         alCerrarSesion(); // si se borró en el backend, cerramos sesión en el frontend también
       } else {
         console.error('Error al eliminar en el BackEnd');
@@ -201,20 +341,14 @@ export default function Aplicacion() {
     if (!selectedTopic || selectedLevel === null || !userName) return;
 
     try {
-      const respuesta = await fetch(`${API_URL_PROGRESO}/guardar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          alumnoNombre: userName,
-          topicId:      selectedTopic.id,
-          levelIndex:   selectedLevel,
-          stars:        stars
-        })
+      const datos = await guardarProgresoDeNivel({
+        alumnoNombre: userName,
+        topicId:      selectedTopic.id,
+        levelIndex:   selectedLevel,
+        stars:        stars,
       });
 
-      if (respuesta.ok) {
-        const datos = await respuesta.json();
-
+      if (datos.success) {
         // Actualizamos el progreso local con la respuesta del backend
         // ...prev copia todo el progreso anterior (spread operator)
         // [selectedTopic.id] reemplaza solo el tema que acaba de jugar
@@ -251,6 +385,7 @@ export default function Aplicacion() {
   };
 
   const alCerrarSesion = () => {
+    borrarSesion(); // limpia la sesión guardada para que el próximo F5 sí mande a login
     // Limpiamos TODOS los estados — como si la app volviera a arrancar
     setUserId(null);
     setUserName('');
@@ -261,11 +396,18 @@ export default function Aplicacion() {
     setSelectedLevel(null);
     setProgress({}); // limpiamos el progreso para que no se vea en pantalla al salir
     setShopData({ ownedItems: [], equipped: null, spentStars: 0 }); // limpiamos la tienda en pantalla
+    setMisGrupo(null); // limpiamos el grupo de clase
     setView('login');
   };
 
-  const alReiniciarProgreso = () => {
-    setProgress({}); // borra el progreso visualmente (el backend no se toca)
+  const alReiniciarProgreso = async () => {
+    setProgress({}); // borra visualmente de inmediato, para que se sienta instantáneo
+    if (!userId) return;
+    try {
+      await apiBorrarProgreso(userId); // y ahora también borra las filas reales en MySQL
+    } catch (error) {
+      console.error('Error al borrar el progreso en la base de datos:', error);
+    }
   };
 
   // ── COMPRAR UN ACCESORIO DE LA TIENDA ────────────────────────
@@ -290,6 +432,29 @@ export default function Aplicacion() {
     });
   };
 
+  // ── RESTRICCIONES POR GRUPO DE CLASE ─────────────────────────
+  // Si el alumno pertenece a un grupo, solo puede ver los temas que su
+  // maestro asignó. Si no pertenece a ninguno (misGrupo === null), ve todo.
+  const temasPermitidos: string[] | null = misGrupo
+    ? misGrupo.temas.map((t: any) => t.id_tema)
+    : null;
+
+  // Dentro de un tema, si el maestro curó niveles específicos (pestaña
+  // "Ejercicios") solo se muestran esos. Si NO curó ninguno para ese tema
+  // en particular, se muestran los 8 completos (mejor default: no vacío).
+  const ejerciciosDelTemaActual = (misGrupo?.ejercicios || [])
+    .filter((e: any) => typeof e.id_ejercicio === 'string' && e.id_ejercicio.startsWith(`${selectedTopic?.id}-`));
+
+  const nivelesPermitidos: number[] | null = (misGrupo && selectedTopic && ejerciciosDelTemaActual.length > 0)
+    ? ejerciciosDelTemaActual.map((e: any) => Number(e.id_ejercicio.split('-').pop()))
+    : null;
+
+  // Mientras se revisa si hay una sesión guardada, mostramos esto en vez
+  // del login — pantalla en blanco simple, como un recargo normal.
+  if (sesionCargando) {
+    return <div style={{ minHeight: '100vh', background: '#2e1065' }} />;
+  }
+
   // ── RENDERIZADO ──────────────────────────────────────────────
   // El return decide QUÉ pantalla mostrar según el estado "view".
   // Solo se muestra UNA pantalla a la vez.
@@ -308,6 +473,8 @@ export default function Aplicacion() {
           userGrade={userGrade}
           userAvatar={userAvatar}
           progress={progress}
+          temasPermitidos={temasPermitidos}
+          ejerciciosDelGrupo={misGrupo?.ejercicios || []}
           onSelectTopic={alSeleccionarTema}
           onProfile={() => setView('profile')}
           onLogout={alCerrarSesion}
@@ -317,15 +484,18 @@ export default function Aplicacion() {
       {/* Perfil del alumno — editar nombre, grado, avatar, ver tienda */}
       {view === 'profile' && (
         <VistaPerfil
+          userId={userId ?? 0}
           userName={userName}
           userGrade={userGrade}
           userEmail={userEmail}
           userAvatar={userAvatar}
           progress={progress}
           shopData={shopData}
+          nombreGrupo={misGrupo?.nombre_grupo || null}
           onBack={() => setView('dashboard')}
           onUpdate={alActualizarPerfil}
-          onLogout={alEliminarCuenta}
+          onLogout={alCerrarSesion}
+          onDeleteAccount={alEliminarCuenta}
           onResetProgress={alReiniciarProgreso}
           onGoShop={() => setView('shop')}
         />
@@ -349,6 +519,8 @@ export default function Aplicacion() {
         <VistaConstelacion
           topic={selectedTopic}
           progress={progress}
+          userGrade={userGrade}
+          nivelesPermitidos={nivelesPermitidos}
           onSelectLevel={alSeleccionarNivel}
           onBack={() => setView('dashboard')}
         />
@@ -376,6 +548,25 @@ export default function Aplicacion() {
           onBack={() => setView('constellation')}
         />
       )}
+
+      {/* Panel del Administrador — CRUD de ejercicios */}
+      {view === 'admin' && (
+        <AdminView onBack={alCerrarSesion} />
+      )}
+
+      {/* Panel del Maestro — Gestión de grupos */}
+      {view === 'teacher' && (
+        <TeacherView userId={userId ?? 0} userEmail={userEmail} onBack={alCerrarSesion} />
+      )}
+
+      {/* Aviso: tu maestro eliminó el grupo al que pertenecías */}
+      <ConfirmModal
+        open={avisoGrupoEliminado}
+        title="Tu grupo cambió"
+        message="Tu maestro eliminó el grupo al que pertenecías. Ahora ves el catálogo completo de temas, sin restricciones."
+        confirmText="Entendido"
+        onConfirm={() => setAvisoGrupoEliminado(false)}
+      />
     </>
   );
 }

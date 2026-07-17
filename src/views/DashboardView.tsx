@@ -3,10 +3,11 @@
 // Muestra una tarjeta por cada tema con progreso y estrellas.
 // ============================================================
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import MostrarEstrellas from '../components/StarDisplay';
-import { getTopicsByGrade, TOPICS }       from '../data/topics';
-import type { Progress } from '../types';
+import { obtenerTemasPorGrado } from '../services/api';
+import { obtenerEstiloDeTema } from '../data/temaEstilos';
+import type { Progress, Topic } from '../types';
 import './DashboardView.css';
 
 // ── ¿QUÉ ES ESTE OBJETO? (INTERFACE) ────────────────────────
@@ -58,12 +59,52 @@ interface Props {
   userGrade:     string;
   userAvatar:    string;
   progress:      Progress;
-  onSelectTopic: (topic: (typeof TOPICS)[number]) => void;
+  // Si el alumno pertenece a un grupo de clase, aquí llegan solo los ids de los
+  // temas que su maestro asignó. null = no pertenece a ningún grupo → ve todos.
+  temasPermitidos?: string[] | null;
+  // Niveles específicos curados por el maestro (formato "slug-orden"). Se usa
+  // para calcular el total real de niveles/estrellas de cada tarjeta — si
+  // el maestro no curó nada para un tema, se usan los 8 niveles completos.
+  ejerciciosDelGrupo?: { id_ejercicio: string }[];
+  onSelectTopic: (topic: Topic) => void;
   onProfile:     () => void;
   onLogout:      () => void;
 }
 
-export default function VistaPrincipal({ userName, userGrade, userAvatar, progress, onSelectTopic, onProfile, onLogout }: Props) {
+export default function VistaPrincipal({ userName, userGrade, userAvatar, progress, temasPermitidos = null, ejerciciosDelGrupo = [], onSelectTopic, onProfile, onLogout }: Props) {
+
+  // Cuenta cuántos niveles curó el maestro para un tema en particular.
+  // Si no curó ninguno, devuelve null → se usa el total real del tema (8).
+  const nivelesCuradosDe = (topicId: string): number | null => {
+    const count = ejerciciosDelGrupo.filter(e => e.id_ejercicio.startsWith(`${topicId}-`)).length;
+    return count > 0 ? count : null;
+  };
+
+  // ── TEMAS DEL GRADO (ahora vienen de MySQL, no de un arreglo) ──
+  const [topics, setTopics] = useState<Topic[]>([]);
+
+  useEffect(() => {
+    if (!userGrade) return;
+
+    obtenerTemasPorGrado(userGrade)
+      .then((res) => {
+        const filas = res.data || [];
+        // Convertimos cada fila de la base (nombre_tema, slug, nivelCount)
+        // en un objeto Topic completo, combinándola con su estilo visual.
+        const temasCompletos: Topic[] = filas.map((fila: any) => {
+          const estilo = obtenerEstiloDeTema(fila.slug);
+          return {
+            id:          fila.slug,
+            title:       fila.nombre_tema,
+            description: '',
+            levelCount:  fila.nivelCount || 8,
+            ...estilo,
+          };
+        });
+        setTopics(temasCompletos);
+      })
+      .catch((err) => console.error('❌ Error al obtener temas:', err));
+  }, [userGrade]);
 
   // ── FUNCIÓN: CALCULAR ESTRELLAS DE UN TEMA ───────────────────
   const obtenerEstrellas = (topicId: string, levelCount: number) => {
@@ -151,18 +192,31 @@ export default function VistaPrincipal({ userName, userGrade, userAvatar, progre
         </div>
 
         {/* ── Tarjetas de temas ── */}
-        {/* getTopicsByGrade obtiene los temas específicos del grado del usuario */}
+        {/* topics ahora viene de MySQL (fetch en el useEffect de arriba) */}
         {/* .map() genera una tarjeta <button> por cada tema */}
+        {temasPermitidos !== null && temasPermitidos.length === 0 && (
+          <div className="dash-empty-class">
+            <span style={{ fontSize: '2.4rem' }}>🛰️</span>
+            <p>Tu maestro todavía no asignó temas a tu clase. ¡Vuelve pronto!</p>
+          </div>
+        )}
+
         <div className="dash-topics">
-          {getTopicsByGrade(userGrade).map((topic) => {
+          {topics
+            .filter(topic => temasPermitidos === null || temasPermitidos.includes(topic.id))
+            .map((topic) => {
+            // Si el maestro curó niveles específicos para este tema, usamos
+            // ESE total; si no curó nada, usamos el total real del tema (8).
+            const levelCountEfectivo = nivelesCuradosDe(topic.id) ?? topic.levelCount;
+
             // Para cada tema calculamos sus estadísticas
-            const { earned, total } = obtenerEstrellas(topic.id, topic.levelCount);
+            const { earned, total } = obtenerEstrellas(topic.id, levelCountEfectivo);
             const completed = obtenerProgresoTema(topic.id);
 
             // Math.round() redondea al entero más cercano
-            // (completed / topic.levelCount) * 100 da el porcentaje de progreso
+            // (completed / levelCountEfectivo) * 100 da el porcentaje de progreso
             // Ejemplo: 3 completados de 8 niveles → (3/8)*100 = 37.5 → Math.round = 38%
-            const pct = Math.round((completed / topic.levelCount) * 100);
+            const pct = Math.round((completed / levelCountEfectivo) * 100);
 
             return (
               <button
@@ -180,7 +234,7 @@ export default function VistaPrincipal({ userName, userGrade, userAvatar, progre
                     <div className="dtc-pbar-track">
                       <div className="dtc-pbar-fill" style={{ width: `${pct}%` }} />
                     </div>
-                    <span className="dtc-pct">{completed}/{topic.levelCount} niveles</span>
+                    <span className="dtc-pct">{completed}/{levelCountEfectivo} niveles</span>
                   </div>
                   <div className="dtc-stars-row">
                     {/* Math.floor → redondea hacia abajo (piso) */}

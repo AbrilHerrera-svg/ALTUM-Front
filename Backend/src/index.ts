@@ -12,6 +12,9 @@ import cors from 'cors';        // CORS permite que el frontend (puerto 5173) ha
 import usuariosRoutes  from './routes/usuario.routes';
 import ejercicioRoutes from './routes/ejercicio.routes';
 import progresoRoutes  from './routes/progreso.routes';
+import adminRoutes     from './routes/admin.routes';
+import teacherRoutes   from './routes/teacher.routes';
+import temaRoutes      from './routes/tema.routes';
 
 const app  = express(); // Creamos la aplicación de Express (el servidor)
 const PORT = 3000;      // Puerto donde escuchará el servidor. El frontend lo llama en http://localhost:3000
@@ -29,6 +32,9 @@ app.use(express.json());   // Activa el lector de JSON → sin esto, req.body ll
 app.use('/api/usuarios',   usuariosRoutes);  // GET/POST/PUT/DELETE /api/usuarios
 app.use('/api/ejercicios', ejercicioRoutes); // GET /api/ejercicios/:tema/:nivel
 app.use('/api/progreso',   progresoRoutes);  // GET/POST /api/progreso
+app.use('/api/admin',      adminRoutes);     // GET/POST/PUT/DELETE /api/admin/ejercicios
+app.use('/api/teacher',    teacherRoutes);   // Gestión de grupos y asignaciones
+app.use('/api/temas',      temaRoutes);      // GET /api/temas y /api/temas/:slug/niveles
 
 // ── ARRANCAR EL SERVIDOR ─────────────────────────────────────
 // .listen() hace que el servidor empiece a esperar peticiones en el puerto indicado

@@ -19,8 +19,11 @@ const controller = new UsuarioController(); // instanciamos el controller para u
 // Cada línea conecta: MÉTODO + URL → función del controller
 // (req, res) => es necesario para que TypeScript pase los tipos correctamente
 router.get('/',      (req, res) => controller.listar(req, res));    // GET    /api/usuarios
+router.post('/login',(req, res) => controller.login(req, res));     // POST   /api/usuarios/login
+router.post('/recuperar', (req, res) => controller.recuperarContrasena(req, res)); // POST /api/usuarios/recuperar
 router.post('/',     (req, res) => controller.crear(req, res));     // POST   /api/usuarios
 router.put('/:id',   (req, res) => controller.actualizar(req, res));// PUT    /api/usuarios/5
+router.put('/:id/password', (req, res) => controller.cambiarContrasena(req, res)); // PUT /api/usuarios/5/password
 router.delete('/:id',(req, res) => controller.eliminar(req, res));  // DELETE /api/usuarios/5
 // /:id es un parámetro dinámico → el número cambia según el usuario
 // Se lee desde el controller con: req.params.id

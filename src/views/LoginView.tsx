@@ -7,9 +7,10 @@
 //   'forgot'  → formulario para recuperar contraseña
 // ============================================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import SpaceBackdrop from '../components/SpaceBackdrop'; // fondo animado del espacio
 import SpacePlanets  from '../components/SpacePlanets';  // planetas decorativos
+import { iniciarSesion, iniciarSesionORegistrar, listarUsuarios, buscarGrupoPorCodigo, recuperarContrasena } from '../services/api';
 import './LoginView.css';
 
 // Opciones del selector de grado escolar
@@ -21,7 +22,7 @@ type Mode = 'login' | 'register' | 'forgot';
 // Props: lo que el componente padre (App.tsx) le pasa a este componente.
 // onLogin es una función que se ejecuta cuando el usuario inicia sesión correctamente.
 interface Props {
-  onLogin: (name: string, grade: string, email: string, avatar: string) => void;
+  onLogin: (name: string, grade: string, email: string, avatar: string, role?: 'estudiante' | 'tutor' | 'administrador') => void;
 }
 
 export default function VistaLogin({ onLogin }: Props) {
@@ -35,16 +36,50 @@ export default function VistaLogin({ onLogin }: Props) {
   const [showLoginPw,   setShowLoginPw]   = useState(false); // controla si la contraseña es visible
 
   // ── ESTADOS DEL FORMULARIO DE REGISTRO ──────────────────────
-  const [regName,     setRegName]     = useState('');
-  const [regGrade,    setRegGrade]    = useState('');
-  const [regEmail,    setRegEmail]    = useState('');
-  const [regPassword, setRegPassword] = useState('');
-  const [regConfirm,  setRegConfirm]  = useState('');
-  const [showRegPw,   setShowRegPw]   = useState(false);
+  const [regName,        setRegName]        = useState('');
+  const [regGrade,       setRegGrade]       = useState('');
+  const [regEmail,       setRegEmail]       = useState('');
+  const [regPassword,    setRegPassword]    = useState('');
+  const [regConfirm,     setRegConfirm]     = useState('');
+  const [regRole,        setRegRole]        = useState<'estudiante' | 'tutor' | 'administrador'>('estudiante');
+  const [regClassCode,   setRegClassCode]   = useState('');
+  const [showRegPw,      setShowRegPw]      = useState(false);
+
+  // ── BÚSQUEDA AUTOMÁTICA DE GRUPO POR CÓDIGO ─────────────────
+  // Cuando el código está completo (6 caracteres), buscamos el grupo y
+  // autocompletamos + bloqueamos el grado para que coincida con el grupo.
+  const [grupoEncontrado, setGrupoEncontrado] = useState<{ nombre_grupo: string; grado: string } | null>(null);
+  const [buscandoGrupo,   setBuscandoGrupo]   = useState(false);
+
+  useEffect(() => {
+    const codigo = regClassCode.trim().toUpperCase();
+
+    if (codigo.length !== 6) {
+      setGrupoEncontrado(null);
+      return;
+    }
+
+    setBuscandoGrupo(true);
+    const timer = setTimeout(async () => {
+      const { ok, data } = await buscarGrupoPorCodigo(codigo);
+      if (ok && data.data) {
+        setGrupoEncontrado(data.data);
+        setRegGrade(data.data.grado || '');
+      } else {
+        setGrupoEncontrado(null);
+      }
+      setBuscandoGrupo(false);
+    }, 400); // pequeño debounce para no buscar en cada tecla
+
+    return () => clearTimeout(timer);
+  }, [regClassCode]);
 
   // ── ESTADOS DEL FORMULARIO DE RECUPERAR CONTRASEÑA ──────────
   const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotSent,  setForgotSent]  = useState(false); // true cuando "se envió" el correo
+  const [forgotNombre, setForgotNombre] = useState('');
+  const [forgotPassword, setForgotPassword] = useState('');
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('');
+  const [forgotSent,  setForgotSent]  = useState(false); // true cuando ya se cambió la contraseña
 
   // ── MENSAJES DE ERROR Y ÉXITO ────────────────────────────────
   const [error,   setError]   = useState('');
@@ -83,21 +118,20 @@ export default function VistaLogin({ onLogin }: Props) {
     if (!loginEmail || !loginPassword) { setError('Por favor completa todos los campos.'); return; }
 
     try {
-      // Consultamos al backend la lista de todos los usuarios registrados
-      const respuesta      = await fetch('http://localhost:3000/api/usuarios');
-      const usuariosServer = await respuesta.json();
+      // El backend verifica correo + contraseña — el frontend ya no decide esto
+      const { ok, data: datos } = await iniciarSesion({
+        correo: loginEmail.toLowerCase(),
+        contrasena: loginPassword, // OJO: sin tilde, así lo espera el backend
+      });
 
-      // Buscamos si existe un usuario con ese correo
-      // .toLowerCase() para no distinguir entre mayúsculas y minúsculas
-      const usuario = usuariosServer.find((u: any) => u.correo === loginEmail.toLowerCase());
-
-      if (!usuario) {
-        setError('Correo o contraseña incorrectos. Intenta de nuevo.');
+      if (!ok) {
+        setError(datos.error || 'Correo o contraseña incorrectos. Intenta de nuevo.');
         return;
       }
 
-      // Si encontramos el usuario, notificamos al App.tsx con sus datos
-      onLogin(usuario.nombre, usuario.grado, usuario.correo, usuario.avatar || '👨‍🚀');
+      // Si el backend confirmó las credenciales, notificamos al App.tsx con sus datos
+      const usuario = datos.usuario;
+      onLogin(usuario.nombre, usuario.grado, usuario.correo, usuario.avatar || '👨‍🚀', usuario.nombre_rol || 'estudiante');
     } catch (err) {
       setError('Error de red al conectar con el servidor.');
     }
@@ -109,43 +143,50 @@ export default function VistaLogin({ onLogin }: Props) {
     setError('');
 
     // Validaciones del formulario antes de mandar al backend
-    if (!regName || !regGrade || !regEmail || !regPassword || !regConfirm) {
+    // El grado es opcional si es teacher o admin
+    if (!regName || !regEmail || !regPassword || !regConfirm) {
       setError('Por favor completa todos los campos.'); return;
+    }
+    // El grado solo es obligatorio si NO trae código de clase —
+    // si trae código, el grado lo determina el grupo (el backend lo resuelve).
+    if (regRole === 'estudiante' && !regGrade && !regClassCode.trim()) {
+      setError('Los estudiantes deben seleccionar un grado.'); return;
     }
     if (regPassword.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return; }
     if (regPassword !== regConfirm) { setError('Las contraseñas no coinciden.'); return; }
 
     try {
       // 1. Verificamos primero si el correo ya está registrado
-      const respuestaGet   = await fetch('http://localhost:3000/api/usuarios');
-      const usuariosServer = await respuestaGet.json();
+      const usuariosServer = await listarUsuarios();
 
       if (usuariosServer.find((u: any) => u.correo === regEmail.toLowerCase())) {
         setError('Ya existe una cuenta con ese correo.'); return;
       }
 
       // 2. Si el correo está libre, mandamos el POST para registrar al nuevo usuario
-      const respuestaPost = await fetch('http://localhost:3000/api/usuarios', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombre:     regName.trim(),
-          grado:      regGrade,
-          correo:     regEmail.toLowerCase(),
-          contraseña: regPassword,
-          avatar:     '👨‍🚀'
-        })
+      const datos = await iniciarSesionORegistrar({
+        nombre:     regName.trim(),
+        grado:      regGrade,
+        correo:     regEmail.toLowerCase(),
+        contrasena: regPassword, // OJO: sin tilde, así lo espera el backend
+        role:       regRole,
+        classCode:  regRole === 'estudiante' ? regClassCode.trim() : '',
       });
 
-      const datos = await respuestaPost.json();
-
-      if (respuestaPost.ok) {
-        setSuccess('¡Registro exitoso! Redirigiendo...');
+      if (datos.usuario) {
+        // Avisamos si el código de clase sí unió al alumno a un grupo, o si el código no existía
+        if (datos.grupoUnido) {
+          setSuccess(`¡Registro exitoso! Te uniste al grupo "${datos.grupoUnido}" 🎉 Redirigiendo...`);
+        } else if (datos.codigoInvalido) {
+          setSuccess('¡Registro exitoso! El código de clase no era válido, pero tu cuenta ya está creada. Redirigiendo...');
+        } else {
+          setSuccess('¡Registro exitoso! Redirigiendo...');
+        }
         // Después de 1.4 segundos, llevamos al usuario al login con su correo ya puesto
         setTimeout(() => {
           setLoginEmail(regEmail.toLowerCase());
           cambiarModo('login');
-        }, 1400);
+        }, 1800);
       } else {
         setError(datos.error || 'Error al registrar el usuario.');
       }
@@ -154,13 +195,38 @@ export default function VistaLogin({ onLogin }: Props) {
     }
   };
 
-  // ── FUNCIÓN: RECUPERAR CONTRASEÑA ────────────────────────────
-  // Solo muestra un mensaje de confirmación visual — no envía correo real
-  const RecuperarContrasena = (e: React.FormEvent) => {
+  // ── FUNCIÓN: RECUPERAR CONTRASEÑA (real, sin correo) ─────────
+  // Verifica correo + nombre completo contra el backend; si coinciden,
+  // guarda la contraseña nueva directo, sin enviar ningún correo.
+  const RecuperarContrasena = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!forgotEmail) { setError('Ingresa tu correo electrónico.'); return; }
-    setForgotSent(true); // activa el mensaje de "señal enviada"
+
+    if (!forgotEmail.trim() || !forgotNombre.trim()) {
+      setError('Ingresa tu correo y tu nombre completo (igual que al registrarte).');
+      return;
+    }
+    if (forgotPassword.length < 6) {
+      setError('La nueva contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (forgotPassword !== forgotConfirmPassword) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+
+    try {
+      const { ok, data } = await recuperarContrasena(forgotEmail.trim().toLowerCase(), forgotNombre.trim(), forgotPassword);
+
+      if (!ok) {
+        setError(data.error || 'No se pudo recuperar la contraseña.');
+        return;
+      }
+
+      setForgotSent(true); // activa el mensaje de éxito
+    } catch (err) {
+      setError('Error de red al recuperar la contraseña.');
+    }
   };
 
   // ── RENDERIZADO ──────────────────────────────────────────────
@@ -246,18 +312,66 @@ export default function VistaLogin({ onLogin }: Props) {
         {mode === 'register' && (
           <form onSubmit={Registrarse} className="space-form">
             <div className="space-field">
+              <label>¿Qué eres? *</label>
+              <select className="space-input space-select" value={regRole} onChange={e => setRegRole(e.target.value as 'estudiante' | 'tutor' | 'administrador')}>
+                <option value="estudiante">Estudiante</option>
+                <option value="tutor">Maestro</option>
+              </select>
+            </div>
+
+            <div className="space-field">
               <label>Nombre completo</label>
               <input type="text" className="space-input" placeholder="Tu nombre de explorador"
                 value={regName} onChange={e => setRegName(e.target.value)} maxLength={40} autoComplete="name" />
             </div>
-            <div className="space-field">
-              <label>Grado escolar</label>
-              <select className="space-input space-select" value={regGrade} onChange={e => setRegGrade(e.target.value)}>
-                <option value="">Selecciona tu grado</option>
-                {/* .map() genera una opción por cada grado del array GRADES */}
-                {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </div>
+
+            {regRole === 'estudiante' && (
+              <>
+                <div className="space-field">
+                  <label>Grado escolar *</label>
+                  <select
+                    className="space-input space-select"
+                    value={regGrade}
+                    onChange={e => setRegGrade(e.target.value)}
+                    disabled={!!grupoEncontrado}
+                    style={grupoEncontrado ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
+                  >
+                    <option value="">Selecciona tu grado</option>
+                    {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                  {grupoEncontrado && (
+                    <small style={{ color: '#7c3aed', marginTop: '0.25rem', display: 'block' }}>
+                      🔒 Grado fijado por tu grupo de clase
+                    </small>
+                  )}
+                </div>
+
+                <div className="space-field">
+                  <label>Código de clase (opcional)</label>
+                  <input type="text" className="space-input" placeholder="Código de tu maestro (si tienes)"
+                    value={regClassCode} onChange={e => setRegClassCode(e.target.value)} maxLength={20} />
+                  {buscandoGrupo && (
+                    <small style={{ color: '#999', marginTop: '0.25rem', display: 'block' }}>🔎 Buscando grupo...</small>
+                  )}
+                  {!buscandoGrupo && grupoEncontrado && (
+                    <small style={{ color: '#16a34a', marginTop: '0.25rem', display: 'block' }}>
+                      ✅ Te unirás a "{grupoEncontrado.nombre_grupo}" ({grupoEncontrado.grado})
+                    </small>
+                  )}
+                  {!buscandoGrupo && !grupoEncontrado && regClassCode.trim().length === 6 && (
+                    <small style={{ color: '#ef4444', marginTop: '0.25rem', display: 'block' }}>
+                      ⚠️ No encontramos ese código, revísalo
+                    </small>
+                  )}
+                  {!regClassCode && (
+                    <small style={{ color: '#999', marginTop: '0.25rem', display: 'block' }}>
+                      Déjalo en blanco si no tienes clase asignada
+                    </small>
+                  )}
+                </div>
+              </>
+            )}
+
             <div className="space-field">
               <label>Correo electrónico</label>
               <input type="email" className="space-input" placeholder="explorador@cosmos.com"
@@ -301,20 +415,35 @@ export default function VistaLogin({ onLogin }: Props) {
             {!forgotSent ? (
               <form onSubmit={RecuperarContrasena} className="space-form">
                 <p className="forgot-desc">
-                  Ingresa tu correo y te enviaremos las instrucciones para recuperar tu contraseña.
+                  Ingresa el correo y el nombre completo que usaste al registrarte,
+                  y podrás poner una contraseña nueva directamente.
                 </p>
                 <div className="space-field">
                   <label>Correo electrónico</label>
                   <input type="email" className="space-input" placeholder="explorador@cosmos.com"
                     value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} autoComplete="email" />
                 </div>
-                <button type="submit" className="space-btn primary">Enviar instrucciones 📡</button>
+                <div className="space-field">
+                  <label>Nombre completo</label>
+                  <input type="text" className="space-input" placeholder="Igual que como te registraste"
+                    value={forgotNombre} onChange={e => setForgotNombre(e.target.value)} autoComplete="name" />
+                </div>
+                <div className="space-field">
+                  <label>Nueva contraseña</label>
+                  <input type="password" className="space-input" placeholder="Mínimo 6 caracteres"
+                    value={forgotPassword} onChange={e => setForgotPassword(e.target.value)} autoComplete="new-password" />
+                </div>
+                <div className="space-field">
+                  <label>Confirmar nueva contraseña</label>
+                  <input type="password" className="space-input" placeholder="Repite la contraseña"
+                    value={forgotConfirmPassword} onChange={e => setForgotConfirmPassword(e.target.value)} autoComplete="new-password" />
+                </div>
+                <button type="submit" className="space-btn primary">Cambiar contraseña 🔑</button>
               </form>
             ) : (
-              // Mensaje visual de confirmación (no envía correo real)
               <div className="forgot-success">
-                <div className="forgot-icon">📡</div>
-                <p>¡Señal enviada! Revisa tu correo <strong>{forgotEmail}</strong> para recuperar tu contraseña.</p>
+                <div className="forgot-icon">✅</div>
+                <p>¡Listo! Tu contraseña se cambió correctamente. Ya puedes iniciar sesión con la nueva.</p>
               </div>
             )}
             <button type="button" className="space-link mt" onClick={() => cambiarModo('login')}>
