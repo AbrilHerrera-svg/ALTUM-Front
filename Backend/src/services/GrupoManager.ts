@@ -105,11 +105,16 @@ export class GrupoManager {
 
   public static async estudiantesDelGrupo(id_grupo: number) {
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT u.id_usuario, u.nombre, u.correo, g.nombre_grado AS grado
+      `SELECT u.id_usuario, u.nombre, u.correo, g.nombre_grado AS grado,
+              COALESCE(SUM(pc.estrellas), 0)  AS total_estrellas,
+              COALESCE(SUM(pc.completado), 0) AS niveles_completados
          FROM estudiantes e
          JOIN usuarios u ON u.id_usuario = e.id_usuario
          LEFT JOIN grados g ON g.id_grado = e.id_grado
-        WHERE e.id_grupo = ?`,
+         LEFT JOIN progreso_catalogo pc ON pc.id_usuario = u.id_usuario
+        WHERE e.id_grupo = ?
+        GROUP BY u.id_usuario, u.nombre, u.correo, g.nombre_grado
+        ORDER BY u.nombre ASC`,
       [id_grupo]
     );
     return rows;
