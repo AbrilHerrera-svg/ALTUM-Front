@@ -19,6 +19,7 @@ import {
   asignarNivelAGrupo,
   quitarNivelDeGrupo,
   eliminarGrupo,
+  obtenerEjercicios,
 } from '../services/api';
 import './TeacherView.css';
 
@@ -39,8 +40,55 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   // ── Estado de gestión de un grupo específico ──
+  // ── ÍCONO DEL OJO (mismo SVG que en el login, para mostrar/ocultar) ──
+  const IconoOjo = ({ tachado }: { tachado: boolean }) => tachado ? (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </svg>
+  ) : (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  );
+
   const [selectedGrupo, setSelectedGrupo] = useState<any | null>(null);
   const [manageTab, setManageTab] = useState<ManageTab>('estudiantes');
+  const [busquedaEstudiante, setBusquedaEstudiante] = useState('');
+
+  // Vista previa de preguntas: qué nivel está expandido, y un caché de sus
+  // preguntas ya descargadas (para no volver a pedirlas si lo cierras y abres).
+  const [nivelExpandido, setNivelExpandido] = useState<string | null>(null);
+  const [preguntasPreview, setPreguntasPreview] = useState<Record<string, any[]>>({});
+  const [cargandoPreview, setCargandoPreview] = useState<string | null>(null);
+
+  const toggleVerPreguntas = async (idTema: string, idNivel: number) => {
+    const clave = `${idTema}-${idNivel}`;
+
+    if (nivelExpandido === clave) {
+      setNivelExpandido(null); // ya estaba abierto → lo cierra
+      return;
+    }
+
+    setNivelExpandido(clave);
+
+    if (!preguntasPreview[clave]) {
+      setCargandoPreview(clave);
+      try {
+        const data = await obtenerEjercicios(idTema, idNivel, selectedGrupo?.grado || '');
+        setPreguntasPreview(prev => ({ ...prev, [clave]: data.ejercicios || data || [] }));
+      } catch (error) {
+        console.error('Error al obtener la vista previa:', error);
+        setPreguntasPreview(prev => ({ ...prev, [clave]: [] }));
+      } finally {
+        setCargandoPreview(null);
+      }
+    }
+  };
   const [codigoCopiado, setCodigoCopiado] = useState(false);
 
   const handleCopiarCodigo = (codigo: string) => {
@@ -110,6 +158,9 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
       const data = await obtenerGrupo(idGrupo);
       setSelectedGrupo(data.data);
       setManageTab('estudiantes');
+      setBusquedaEstudiante('');
+      setNivelExpandido(null);
+      setPreguntasPreview({});
       setTab('gestionar');
     } catch (error) {
       console.error('Error:', error);
@@ -300,16 +351,39 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
             {manageTab === 'estudiantes' && (
               <div className="tv-card">
                 <p className="tv-section-label">En el grupo ({selectedGrupo.estudiantes?.length || 0})</p>
+
+                {selectedGrupo.estudiantes && selectedGrupo.estudiantes.length > 0 && (
+                  <input
+                    type="text"
+                    className="tv-search-input"
+                    placeholder="🔎 Buscar alumno por nombre o correo..."
+                    value={busquedaEstudiante}
+                    onChange={e => setBusquedaEstudiante(e.target.value)}
+                  />
+                )}
+
                 {(!selectedGrupo.estudiantes || selectedGrupo.estudiantes.length === 0) ? (
                   <p className="tv-empty-msg">Aún no hay estudiantes en este grupo. Comparte el código para que se unan al registrarse.</p>
                 ) : (
                   <div className="tv-list">
-                    {selectedGrupo.estudiantes.map((e: any) => (
-                      <div key={e.id_usuario} className="tv-list-item">
-                        <span>👤 {e.nombre} <small>({e.correo})</small></span>
-                        <button className="tv-btn-delete" onClick={() => handleRemoveEstudiante(e.id_usuario)}>❌</button>
-                      </div>
-                    ))}
+                    {selectedGrupo.estudiantes
+                      .filter((e: any) => {
+                        const q = busquedaEstudiante.trim().toLowerCase();
+                        if (!q) return true;
+                        return e.nombre.toLowerCase().includes(q) || e.correo.toLowerCase().includes(q);
+                      })
+                      .map((e: any) => (
+                        <div key={e.id_usuario} className="tv-list-item">
+                          <span>
+                            👤 {e.nombre} <small>({e.correo})</small>
+                            <br />
+                            <small className="tv-progreso">
+                              ⭐ {e.total_estrellas ?? 0} estrellas · ✅ {e.niveles_completados ?? 0} niveles completados
+                            </small>
+                          </span>
+                          <button className="tv-btn-delete" onClick={() => handleRemoveEstudiante(e.id_usuario)}>❌</button>
+                        </div>
+                      ))}
                   </div>
                 )}
               </div>
@@ -357,15 +431,46 @@ export default function TeacherView({ userId, userEmail, onBack }: Props) {
                           {nombresNiveles.map((nombreNivel, nivelIdx) => {
                             const idEjercicio = `${tema.id_tema}-${nivelIdx}`;
                             const asignado = (selectedGrupo.ejercicios || []).some((e: any) => e.id_ejercicio === idEjercicio);
+                            const expandido = nivelExpandido === idEjercicio;
                             return (
-                              <div key={idEjercicio} className="tv-list-item">
-                                <span>Nivel {nivelIdx + 1}: {nombreNivel}</span>
-                                <button
-                                  className={asignado ? 'tv-btn-delete' : 'tv-btn-edit'}
-                                  onClick={() => handleToggleEjercicio(tema.id_tema, nivelIdx, nombreNivel, asignado)}
-                                >
-                                  {asignado ? '❌ Quitar' : '➕ Asignar'}
-                                </button>
+                              <div key={idEjercicio}>
+                                <div className="tv-list-item">
+                                  <span>Nivel {nivelIdx + 1}: {nombreNivel}</span>
+                                  <div style={{ display: 'flex', gap: 6 }}>
+                                    <button
+                                      className="tv-btn-preview"
+                                      onClick={() => toggleVerPreguntas(tema.id_tema, nivelIdx)}
+                                    >
+                                      <IconoOjo tachado={expandido} /> {expandido ? 'Ocultar' : 'Ver preguntas'}
+                                    </button>
+                                    <button
+                                      className={asignado ? 'tv-btn-delete' : 'tv-btn-edit'}
+                                      onClick={() => handleToggleEjercicio(tema.id_tema, nivelIdx, nombreNivel, asignado)}
+                                    >
+                                      {asignado ? '❌ Quitar' : '➕ Asignar'}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {expandido && (
+                                  <div className="tv-preview-box">
+                                    {cargandoPreview === idEjercicio ? (
+                                      <p className="tv-empty-msg">Cargando preguntas...</p>
+                                    ) : (preguntasPreview[idEjercicio] || []).length === 0 ? (
+                                      <p className="tv-empty-msg">Este nivel todavía no tiene preguntas cargadas.</p>
+                                    ) : (
+                                      <ol className="tv-preview-list">
+                                        {preguntasPreview[idEjercicio].map((ej: any, i: number) => (
+                                          <li key={i}>
+                                            <strong>{ej.question}</strong>
+                                            <br />
+                                            <small>Opciones: {ej.options?.join(' · ')}</small>
+                                          </li>
+                                        ))}
+                                      </ol>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}

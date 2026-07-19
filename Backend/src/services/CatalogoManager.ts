@@ -1,7 +1,6 @@
 // ============================================================
 // CatalogoManager.ts — CAPA DE SERVICIO para el catálogo de
 // temas/niveles/ejercicios/opciones. A partir de ahora, esta es
-// la ÚNICA fuente de verdad — ya no el arreglo hardcodeado.
 // ============================================================
 
 import pool from '../config/database';
@@ -16,14 +15,15 @@ export interface EjercicioDTO {
 
 export class CatalogoManager {
 
-  // Temas del catálogo general de un grado (id_grupo IS NULL = no son
-  // temas personalizados de un maestro, son los del juego para todos).
+  // Temas del catálogo general de un grado. Los temas ya no tienen "dueño"
+  // directo (eso ahora vive en la tabla puente grupo_temas), así que aquí
+  // solo se filtra por grado.
   public static async obtenerTemasPorGrado(grado: string) {
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT t.id_tema, t.nombre_tema, t.slug, t.grado,
               (SELECT COUNT(*) FROM niveles n WHERE n.id_tema = t.id_tema) AS nivelCount
          FROM temas t
-        WHERE t.grado = ? AND t.id_grupo IS NULL
+        WHERE t.grado = ?
         ORDER BY t.id_tema ASC`,
       [grado]
     );
