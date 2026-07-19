@@ -103,7 +103,7 @@ export class UsuarioController {
       const { contrasenaActual, contrasenaNueva } = req.body;
 
       if (!contrasenaActual || !contrasenaNueva) {
-        res.status(400).json({ error: 'Faltan datos: contrasenaActual y contrasenaNueva son obligatorios' });
+        res.status(400).json({ error: 'Faltan datos: contraseñaActual y contraseñaNueva son obligatorios' });
         return;
       }
 
@@ -128,7 +128,7 @@ export class UsuarioController {
       const { correo, nombre, contrasenaNueva } = req.body;
 
       if (!correo || !nombre || !contrasenaNueva) {
-        res.status(400).json({ error: 'Faltan datos: correo, nombre y contrasenaNueva son obligatorios' });
+        res.status(400).json({ error: 'Faltan datos: correo, nombre y contraseñaNueva son obligatorios' });
         return;
       }
 
